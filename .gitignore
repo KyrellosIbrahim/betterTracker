@@ -25,5 +25,6 @@ dist-ssr
 # Backend
 backend/.env
 backend/venv/
+*.db
 __pycache__/
 *.pyc
