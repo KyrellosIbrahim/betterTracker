@@ -78,4 +78,5 @@ def close_session(session: GameSession, db: Session) -> GameSession:
 
 def get_active_session(db: Session) -> GameSession | None:
     """Get the currently open (no end_time) game session, if one exists."""
-    return db.query(GameSession).filter(GameSession.end_time.is_(None)).first()
+    result = db.query(GameSession).filter(GameSession.end_time.is_(None)).first()
+    return result  # type: ignore[return-value]
