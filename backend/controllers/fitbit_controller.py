@@ -1,14 +1,12 @@
 # Routes for Google Health API data and OAuth authentication.
 # Handles the Google OAuth login redirect, token callback, and health data endpoints.
 
-import json
-
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from datetime import date
 from database import get_db
-from services import fitbit_service
+from services import fitbit_service, sleep_score_service
 from schemas.fitbit import HeartRateResponse, SleepResponse, BreathingRateResponse, HealthSnapshotResponse
 
 router = APIRouter(tags=["Health"])
@@ -43,8 +41,22 @@ def get_heart_rate(target_date: date = Query(default=date.today())):
 def get_sleep(target_date: date = Query(default=date.today())):
     """Fetch sleep data for a given day. Defaults to today."""
     data = fitbit_service.fetch_sleep(target_date)
-    print(f"Sleep response: {data}")
-    return SleepResponse(date=target_date)
+    result = sleep_score_service.calculate_sleep_score(data)
+    if result is None:
+        return SleepResponse(date=target_date)
+
+    metrics = result["metrics"]
+    return SleepResponse(
+        date=target_date,
+        duration_minutes=metrics["minutes_asleep"],
+        deep_minutes=metrics["deep_minutes"],
+        light_minutes=metrics["light_minutes"],
+        rem_minutes=metrics["rem_minutes"],
+        awake_minutes=metrics["awake_minutes"],
+        sleep_score=result["score"],
+        rating=result["rating"],
+        components=result["components"],
+    )
 
 
 @router.get("/health/breathing-rate", response_model=BreathingRateResponse)
@@ -59,5 +71,18 @@ def get_breathing_rate(target_date: date = Query(default=date.today())):
 @router.get("/health/snapshot", response_model=HealthSnapshotResponse)
 def get_health_snapshot(target_date: date = Query(default=date.today()), db: Session = Depends(get_db)):
     """Fetch all health data for a day and persist it to the database."""
-    # TODO: aggregate all health data, save via fitbit_service.save_health_snapshot
-    return HealthSnapshotResponse(date=target_date)
+    hr_response = get_heart_rate(target_date)
+    sleep_response = get_sleep(target_date)
+    br_response = get_breathing_rate(target_date)
+
+    return HealthSnapshotResponse(
+        date=target_date,
+        resting_heart_rate=hr_response.resting_heart_rate,
+        sleep_score=sleep_response.sleep_score,
+        sleep_duration_minutes=sleep_response.duration_minutes,
+        deep_minutes=sleep_response.deep_minutes,
+        light_minutes=sleep_response.light_minutes,
+        rem_minutes=sleep_response.rem_minutes,
+        awake_minutes=sleep_response.awake_minutes,
+        breathing_rate=br_response.breathing_rate,
+    )
