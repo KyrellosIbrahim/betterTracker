@@ -70,9 +70,12 @@ async def poll_currently_playing():
                     # Switched games or started a new one
                     if active_session:
                         steam_service.close_session(active_session, db)
-                    genre = steam_service.get_game_genre(game_id, db)
-                    steam_service.open_session(game_id, game_name, genre, db)
-                    print(f"Session started: {game_name} ({genre})")
+                    metadata = steam_service.get_game_metadata(game_id, db)
+                    genre = metadata.genre if metadata else None
+                    is_competitive = metadata.is_competitive if metadata else False
+                    steam_service.open_session(game_id, game_name, genre, is_competitive, db)
+                    competitive = ", competitive" if is_competitive else ""
+                    print(f"Session started: {game_name} ({genre}{competitive})")
             else:
                 # Not playing — close any active session
                 if active_session:

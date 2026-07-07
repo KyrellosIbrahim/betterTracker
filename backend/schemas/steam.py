@@ -11,6 +11,7 @@ class CurrentlyPlayingResponse(BaseModel):
     game_id: Optional[int] = None
     game_name: Optional[str] = None
     genre: Optional[str] = None
+    is_competitive: Optional[bool] = None
 
 
 class RecentlyPlayedGame(BaseModel):
@@ -20,6 +21,7 @@ class RecentlyPlayedGame(BaseModel):
     playtime_2weeks: int  # minutes
     playtime_forever: int  # minutes
     genre: Optional[str] = None
+    is_competitive: Optional[bool] = None
 
 
 class RecentlyPlayedResponse(BaseModel):
@@ -29,8 +31,19 @@ class RecentlyPlayedResponse(BaseModel):
 
 
 class GameDetails(BaseModel):
-    """Cached game metadata from the Steam Store API."""
+    """Cached game metadata, manually maintained."""
     app_id: int
     name: str
     genre: Optional[str] = None
-    tags: Optional[str] = None
+    is_competitive: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class GameDetailsCreate(BaseModel):
+    """Request body for adding/updating a game in the cache."""
+    app_id: int
+    game_name: str
+    genre: Optional[str] = None
+    is_competitive: bool = False

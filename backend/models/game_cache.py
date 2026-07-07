@@ -1,8 +1,9 @@
-# ORM model for cached game metadata from the Steam Store API.
-# Genre lookups are expensive and don't change, so we cache them.
-# Once a game's genre is fetched, it's stored here and never re-fetched.
+# ORM model for manually maintained game metadata.
+# Genre and competitive flag are set by the user, not fetched from Steam.
+# This lets you tag games with what actually matters for health correlation
+# (e.g. Brawlhalla ranked = competitive, RuneScape bossing = not).
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean
 from database import Base
 
 
@@ -13,4 +14,4 @@ class GameCache(Base):
     app_id = Column(Integer, unique=True, nullable=False, index=True)
     game_name = Column(String, nullable=False)
     genre = Column(String, nullable=True)
-    tags = Column(String, nullable=True)
+    is_competitive = Column(Boolean, default=False, nullable=False)

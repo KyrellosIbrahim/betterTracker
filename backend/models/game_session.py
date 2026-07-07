@@ -3,7 +3,7 @@
 # start_time is set when polling first detects the user playing a game,
 # end_time is set when the user stops or switches games.
 
-from sqlalchemy import Column, Integer, String, DateTime, Float
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean
 from database import Base
 
 
@@ -14,6 +14,7 @@ class GameSession(Base):
     game_id = Column(Integer, nullable=False, index=True)
     game_name = Column(String, nullable=False)
     genre = Column(String, nullable=True)
+    is_competitive = Column(Boolean, default=False, nullable=False)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=True)
     duration_minutes = Column(Float, nullable=True)

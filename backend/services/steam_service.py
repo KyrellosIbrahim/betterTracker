@@ -1,5 +1,5 @@
 # Business logic for Steam API interactions.
-# Handles polling for currently-playing status, genre lookups via the Store API,
+# Handles polling for currently-playing status, manual game metadata lookups,
 # and managing game session lifecycle (open, close, track duration).
 
 import requests
@@ -25,40 +25,39 @@ def get_recently_played() -> dict:
     return response.json()["response"]
 
 
-def get_game_genre(app_id: int, db: Session) -> str | None:
-    """Look up a game's genre. Checks the local cache first, then hits the Steam Store API."""
-    cached = db.query(GameCache).filter(GameCache.app_id == app_id).first()
-    if cached:
-        return cached.genre
+def get_game_metadata(app_id: int, db: Session) -> GameCache | None:
+    """Look up a game's metadata from the manual cache. Returns None if the game hasn't been added yet."""
+    result = db.query(GameCache).filter(GameCache.app_id == app_id).first()
+    return result  # type: ignore[return-value]
 
-    # Fetch from Steam Store API and cache the result
-    response = requests.get(settings.STEAM_GET_GAME_DETAILS_URL(app_id))
-    if response.status_code != 200:
-        return None
 
-    data = response.json()
-    app_data = data.get(str(app_id), {}).get("data", {})
-    genres = app_data.get("genres", [])
-    genre_str = ", ".join(g["description"] for g in genres) if genres else None
-
-    cache_entry = GameCache(
-        app_id=app_id,
-        game_name=app_data.get("name", "Unknown"),
-        genre=genre_str,
-        tags=None,
-    )
-    db.add(cache_entry)
+def upsert_game(app_id: int, game_name: str, genre: str | None, is_competitive: bool, db: Session) -> GameCache:
+    """Add or update a game in the cache."""
+    existing = db.query(GameCache).filter(GameCache.app_id == app_id).first()
+    if existing:
+        existing.game_name = game_name
+        existing.genre = genre
+        existing.is_competitive = is_competitive
+    else:
+        existing = GameCache(
+            app_id=app_id,
+            game_name=game_name,
+            genre=genre,
+            is_competitive=is_competitive,
+        )
+        db.add(existing)
     db.commit()
+    db.refresh(existing)
+    return existing
 
-    return genre_str
 
-
-def open_session(game_id: int, game_name: str, genre: str | None, db: Session) -> GameSession:
+def open_session(game_id: int, game_name: str, genre: str | None, is_competitive: bool, db: Session) -> GameSession:
     """Start a new game session when polling detects the user is playing."""
     session = GameSession(
         game_id=game_id,
         game_name=game_name,
         genre=genre,
+        is_competitive=is_competitive,
         start_time=datetime.now(),
     )
     db.add(session)
