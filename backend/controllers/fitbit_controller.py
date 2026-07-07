@@ -1,6 +1,8 @@
 # Routes for Google Health API data and OAuth authentication.
 # Handles the Google OAuth login redirect, token callback, and health data endpoints.
 
+import json
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -33,8 +35,8 @@ def google_callback(code: str):
 def get_heart_rate(target_date: date = Query(default=date.today())):
     """Fetch resting heart rate for a given day. Defaults to today."""
     data = fitbit_service.fetch_resting_heart_rate(target_date)
-    print(f"Heart rate response: {data}")
-    return HeartRateResponse(date=target_date)
+    rhr = data["dataPoints"][0]["dailyRestingHeartRate"]["beatsPerMinute"] if data["dataPoints"] else None
+    return HeartRateResponse(date=target_date, resting_heart_rate=rhr)
 
 
 @router.get("/health/sleep", response_model=SleepResponse)
@@ -49,8 +51,9 @@ def get_sleep(target_date: date = Query(default=date.today())):
 def get_breathing_rate(target_date: date = Query(default=date.today())):
     """Fetch breathing rate for a given day. Defaults to today."""
     data = fitbit_service.fetch_breathing_rate(target_date)
+    br = data["dataPoints"][0]["dailyRespiratoryRate"]["breathsPerMinute"] if data["dataPoints"] else None
     print(f"Breathing rate response: {data}")
-    return BreathingRateResponse(date=target_date)
+    return BreathingRateResponse(date=target_date, breathing_rate=br)
 
 
 @router.get("/health/snapshot", response_model=HealthSnapshotResponse)
