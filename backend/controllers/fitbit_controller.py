@@ -4,8 +4,9 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, timedelta
 from database import get_db
+from models.health_snapshot import HealthSnapshot
 from services import fitbit_service, sleep_score_service
 from schemas.fitbit import HeartRateResponse, SleepResponse, BreathingRateResponse, HealthSnapshotResponse
 
@@ -88,3 +89,15 @@ def get_health_snapshot(target_date: date = Query(default=date.today()), db: Ses
     fitbit_service.save_health_snapshot(target_date, snapshot_data, db)
 
     return HealthSnapshotResponse(date=target_date, **snapshot_data)
+
+
+@router.get("/health/snapshots", response_model=list[HealthSnapshotResponse])
+def list_health_snapshots(days: int = Query(default=30, le=365), db: Session = Depends(get_db)):
+    """List stored daily snapshots for the last N days, oldest first. Used for trend charts."""
+    cutoff = date.today() - timedelta(days=days)
+    return (
+        db.query(HealthSnapshot)
+        .filter(HealthSnapshot.date >= cutoff)
+        .order_by(HealthSnapshot.date)
+        .all()
+    )

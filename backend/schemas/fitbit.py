@@ -40,6 +40,8 @@ class BreathingRateResponse(BaseModel):
 
 class HealthSnapshotResponse(BaseModel):
     """Combined health data for a single day."""
+    model_config = {"from_attributes": True}
+
     date: date
     resting_heart_rate: Optional[int] = None
     sleep_score: Optional[int] = None
