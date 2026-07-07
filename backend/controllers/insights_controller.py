@@ -23,6 +23,23 @@ def get_insights_by_genre(db: Session = Depends(get_db)):
 def get_sleep_impact(db: Session = Depends(get_db)):
     """
     Sleep score comparison across game genres.
-    Answers: "Do I sleep worse after playing competitive games?"
+    Answers: "Do I sleep worse after playing certain genres?"
     """
     return insights_service.get_sleep_impact_by_genre(db)
+
+
+@router.get("/by-competitive")
+def get_insights_by_competitive(db: Session = Depends(get_db)):
+    """
+    Average health metrics for competitive vs non-competitive sessions.
+    """
+    return insights_service.get_health_by_competitive(db)
+
+
+@router.get("/sleep-impact-competitive")
+def get_sleep_impact_competitive(db: Session = Depends(get_db)):
+    """
+    Sleep score on competitive days vs casual-only days vs no-gaming days.
+    Answers: "Do I sleep worse after playing competitive games?"
+    """
+    return insights_service.get_sleep_impact_by_competitive(db)

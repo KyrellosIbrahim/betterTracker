@@ -44,7 +44,7 @@ class Settings:
 
     @staticmethod
     def STEAM_GET_GAME_DETAILS_URL(app_id: int) -> str:
-        return f"https://store.steampowered.com/api/appdetails?appid={app_id}"
+        return f"https://store.steampowered.com/api/appdetails?appids={app_id}"
 
     # Database
     DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite:///./bettertracker.db")

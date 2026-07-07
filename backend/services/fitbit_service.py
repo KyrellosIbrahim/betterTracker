@@ -7,10 +7,47 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from urllib.parse import urlencode
 from config import settings
+from database import SessionLocal
 from models.health_snapshot import HealthSnapshot
+from models.oauth_token import OAuthToken
 
-# In-memory token storage for now. Replace with DB-backed storage for production.
+# In-memory cache of the Google tokens, backed by the oauth_tokens table
+# so they survive server restarts.
 _google_tokens: dict = {}
+
+
+def _load_tokens() -> None:
+    """Populate the in-memory token cache from the DB if it's empty."""
+    if _google_tokens.get("access_token"):
+        return
+    db = SessionLocal()
+    try:
+        row = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
+        if row:
+            _google_tokens["access_token"] = row.access_token
+            _google_tokens["refresh_token"] = row.refresh_token
+    finally:
+        db.close()
+
+
+def _save_tokens() -> None:
+    """Persist the current tokens to the DB, keeping the existing refresh token if none was issued."""
+    db = SessionLocal()
+    try:
+        row = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
+        if row:
+            row.access_token = _google_tokens.get("access_token", "")
+            if _google_tokens.get("refresh_token"):
+                row.refresh_token = _google_tokens["refresh_token"]
+        else:
+            db.add(OAuthToken(
+                provider="google",
+                access_token=_google_tokens.get("access_token", ""),
+                refresh_token=_google_tokens.get("refresh_token"),
+            ))
+        db.commit()
+    finally:
+        db.close()
 
 
 def get_auth_url() -> str:
@@ -41,11 +78,13 @@ def exchange_code_for_token(code: str) -> dict:
     tokens = response.json()
     _google_tokens["access_token"] = tokens["access_token"]
     _google_tokens["refresh_token"] = tokens.get("refresh_token")
+    _save_tokens()
     return tokens
 
 
 def refresh_access_token() -> str:
     """Use the refresh token to get a new access token."""
+    _load_tokens()
     response = requests.post(
         settings.GOOGLE_TOKEN_URL,
         data={
@@ -58,11 +97,13 @@ def refresh_access_token() -> str:
     response.raise_for_status()
     tokens = response.json()
     _google_tokens["access_token"] = tokens["access_token"]
+    _save_tokens()
     return tokens["access_token"]
 
 
 def _get_headers() -> dict:
     """Build authorization headers for Google Health API requests."""
+    _load_tokens()
     return {"Authorization": f"Bearer {_google_tokens.get('access_token', '')}"}
 
 
@@ -94,14 +135,14 @@ DATA_TYPE_FILTERS = {
 
 
 def _fetch_data(data_type: str, target_date: date, action: str = "list") -> dict:
-    """Fetch health data for a given data type and date."""
+    """Fetch health data for a given data type and date. Refreshes the access token on 401."""
     base = f"{settings.GOOGLE_HEALTH_API_BASE}/v4/users/me/dataTypes/{data_type}/dataPoints"
 
-    if action == "dailyRollUp":
-        url = f"{base}:dailyRollUp"
-        body = _build_date_range(target_date)
-        response = requests.post(url, json=body, headers=_get_headers())
-    else:
+    def make_request():
+        if action == "dailyRollUp":
+            url = f"{base}:dailyRollUp"
+            body = _build_date_range(target_date)
+            return requests.post(url, json=body, headers=_get_headers())
         filter_name, filter_field, format_type = DATA_TYPE_FILTERS[data_type]
         if format_type == "timestamp":
             start = f"{target_date.isoformat()}T00:00:00Z"
@@ -110,7 +151,13 @@ def _fetch_data(data_type: str, target_date: date, action: str = "list") -> dict
             start = target_date.isoformat()
             end = (target_date + timedelta(days=1)).isoformat()
         filter_expr = f'{filter_name}.{filter_field} >= "{start}" AND {filter_name}.{filter_field} < "{end}"'
-        response = requests.get(base, params={"filter": filter_expr}, headers=_get_headers())
+        return requests.get(base, params={"filter": filter_expr}, headers=_get_headers())
+
+    response = make_request()
+    if response.status_code == 401:
+        # Access token expired (e.g. after a server restart) — refresh and retry once
+        refresh_access_token()
+        response = make_request()
 
     if not response.ok:
         print(f"Google Health API error ({response.status_code}): {response.text}")
