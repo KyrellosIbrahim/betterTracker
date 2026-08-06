@@ -116,12 +116,24 @@ async def sync_health_snapshots():
         await asyncio.sleep(settings.HEALTH_SYNC_INTERVAL)
         db = SessionLocal()
         try:
+            # Covers both "never connected" and "grant is dead" — no point making
+            # a dozen failing API calls every hour against a token we know is bad.
+            status = fitbit_service.fetch_token_status(db)
+            if not status["connected"]:
+                print(f"Health sync skipped: {status['last_error'] or 'Google not connected'}")
+                continue
+
+            synced_any = False
             for offset in range(settings.HEALTH_SYNC_WINDOW_DAYS):
                 target = date.today() - timedelta(days=offset)
                 # build_snapshot_data makes blocking HTTP calls — run it in a thread
                 data = await asyncio.to_thread(fitbit_service.build_snapshot_data, target)
                 if any(value is not None for value in data.values()):
                     fitbit_service.save_health_snapshot(target, data, db)
+                    synced_any = True
+
+            if synced_any:
+                fitbit_service.record_sync_success(db)
         except Exception as e:
             print(f"Health sync error: {e}")
         finally:

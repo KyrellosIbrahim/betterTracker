@@ -60,3 +60,6 @@ class TokenStatusResponse(BaseModel):
     connected: bool
     has_refresh_token: bool = False
     updated_at: Optional[datetime] = None
+    needs_reauth: bool = False
+    last_error: Optional[str] = None
+    last_success_at: Optional[datetime] = None

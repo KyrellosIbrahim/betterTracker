@@ -3,8 +3,7 @@
 # (heart rate, sleep, breathing rate, exercise logs) via the Health API v4.
 
 import requests
-from datetime import date, timedelta
-from schemas.fitbit import TokenStatusResponse
+from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from urllib.parse import urlencode
 from config import settings
@@ -52,6 +51,37 @@ def _save_tokens() -> None:
         db.close()
 
 
+def _record_auth_error(reason: str, needs_reauth: bool = False) -> None:
+    """
+    Record why an auth call failed. needs_reauth=True means only a fresh consent
+    can fix it; other errors (e.g. bad client credentials) are recorded for
+    debugging but don't ask the user to reconnect, because that wouldn't help.
+    """
+    db = SessionLocal()
+    try:
+        row = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
+        if row:
+            row.last_error = reason
+            if needs_reauth:
+                row.needs_reauth = True
+            db.commit()
+    finally:
+        db.close()
+
+
+def _clear_reauth():
+    db = SessionLocal()
+    try:
+        row = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
+        if row:
+            row.needs_reauth = False
+            row.last_error = None
+            row.last_success_at = datetime.now()
+            db.commit()
+    finally:
+        db.close()
+
+
 def get_auth_url() -> str:
     params = {
         "response_type": "code",
@@ -81,6 +111,7 @@ def exchange_code_for_token(code: str) -> dict:
     _google_tokens["access_token"] = tokens["access_token"]
     _google_tokens["refresh_token"] = tokens.get("refresh_token")
     _save_tokens()
+    _clear_reauth()
     return tokens
 
 
@@ -96,6 +127,18 @@ def refresh_access_token() -> str:
             "client_secret": settings.GOOGLE_CLIENT_SECRET,
         },
     )
+    # A transport-level failure (timeout, DNS, connection refused) never reaches
+    # here — requests raises — so a network blip can't be mistaken for a dead grant.
+    if response.status_code in (400, 401):
+        try:
+            error = response.json().get("error") or "unknown_error"
+        except ValueError:
+            error = f"non-JSON response: {response.text[:120]}"
+        # invalid_grant is Google's definitive "this refresh token is dead"
+        _record_auth_error(
+            f"{error}: refresh failed with HTTP {response.status_code}",
+            needs_reauth=(error == "invalid_grant"),
+        )
     response.raise_for_status()
     tokens = response.json()
     _google_tokens["access_token"] = tokens["access_token"]
@@ -234,13 +277,39 @@ def save_health_snapshot(target_date: date, data: dict, db: Session) -> HealthSn
     return snapshot
 
 
-def get_token_status(db: Session) -> TokenStatusResponse:
-    """Return the Google OAuth token status, whether or not a token is valid or expired."""
-
-    current_token = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
-    return TokenStatusResponse(
-        connected=bool(current_token and current_token.access_token),
-        has_refresh_token=bool(current_token and current_token.refresh_token),
-        updated_at=current_token.updated_at if current_token else None,
+def fetch_token_status(db: Session) -> dict:
+    """
+    Report the stored Google token's state without calling Google.
+    `connected` means "we hold a refresh token Google hasn't rejected" — the
+    access token is a ~1h credential that _fetch_data renews automatically, so
+    it says nothing about whether the connection is alive.
+    """
+    row = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
+    return dict(
+        connected=bool(row and row.refresh_token and not row.needs_reauth),
+        has_refresh_token=bool(row and row.refresh_token),
+        needs_reauth=bool(row and row.needs_reauth),
+        last_error=row.last_error if row else None,
+        last_success_at=row.last_success_at if row else None,
+        updated_at=row.updated_at if row else None,
     )
+
+
+def record_sync_success(db: Session) -> None:
+    """Stamp the last time we successfully pulled health data."""
+    row = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
+    if row:
+        row.last_success_at = datetime.now()
+        db.commit()
+
+
+def disconnect(db: Session) -> None:
+    """
+    Forget the stored Google token. Clearing the in-memory cache is the part
+    that's easy to miss — without it the process keeps using the deleted token
+    until it restarts.
+    """
+    db.query(OAuthToken).filter(OAuthToken.provider == "google").delete()
+    db.commit()
+    _google_tokens.clear()
     

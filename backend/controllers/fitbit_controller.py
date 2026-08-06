@@ -8,7 +8,13 @@ from datetime import date, timedelta
 from database import get_db
 from models.health_snapshot import HealthSnapshot
 from services import fitbit_service, sleep_score_service
-from schemas.fitbit import HeartRateResponse, SleepResponse, BreathingRateResponse, HealthSnapshotResponse
+from schemas.fitbit import (
+    HeartRateResponse,
+    SleepResponse,
+    BreathingRateResponse,
+    HealthSnapshotResponse,
+    TokenStatusResponse,
+)
 
 router = APIRouter(tags=["Health"])
 
@@ -27,6 +33,18 @@ def google_callback(code: str):
     fitbit_service.exchange_code_for_token(code)
     return RedirectResponse(url="http://localhost:5173")
 
+
+@router.get("/auth/status", response_model=TokenStatusResponse)
+def get_token_status(db: Session = Depends(get_db)):
+    """Report whether Google Health is connected, and why not if it isn't."""
+    return fitbit_service.fetch_token_status(db)
+
+
+@router.delete("/auth/token")
+def delete_token(db: Session = Depends(get_db)):
+    """Forget the stored Google token, e.g. to reconnect with a different account."""
+    fitbit_service.disconnect(db)
+    return {"message": "Token deleted successfully"}
 
 # --- Health Data Endpoints ---
 
@@ -88,8 +106,3 @@ def list_health_snapshots(days: int = Query(default=30, le=365), db: Session = D
         .order_by(HealthSnapshot.date)
         .all()
     )
-
-
-@router.get("/auth/status", response_model=fitbit_service.TokenStatusResponse)
-def get_token_status(db: Session = Depends(get_db)):
-    return fitbit_service.get_token_status(db)
