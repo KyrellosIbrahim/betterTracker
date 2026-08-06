@@ -9,6 +9,7 @@ import type {
   GameDetails,
   GameSession,
   GenreInsight,
+  GenreSleepImpact,
   HealthSnapshot,
   HeartRateResponse,
   RecentlyPlayedGame,
@@ -68,6 +69,9 @@ export const getInsightsByGenre = () => get<GenreInsight[]>('/insights/by-genre'
 
 export const getInsightsByCompetitive = () =>
   get<CompetitiveInsight[]>('/insights/by-competitive')
+
+// Next-morning sleep score after each genre, best first.
+export const getSleepImpactByGenre = () => get<GenreSleepImpact[]>('/insights/sleep-impact')
 
 export const getSleepImpactCompetitive = () =>
   get<SleepImpactCompetitive>('/insights/sleep-impact-competitive')

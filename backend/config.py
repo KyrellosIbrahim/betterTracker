@@ -52,5 +52,18 @@ class Settings:
     # Polling interval for Steam currently-playing check (seconds)
     STEAM_POLL_INTERVAL: int = int(os.environ.get("STEAM_POLL_INTERVAL", "30"))
 
+    # How often to top up health snapshots (seconds). Hourly rather than daily
+    # so a restart or downtime can't skip a day — see HEALTH_SYNC_WINDOW_DAYS.
+    HEALTH_SYNC_INTERVAL: int = int(os.environ.get("HEALTH_SYNC_INTERVAL", "3600"))
+
+    # How many trailing days each sync refreshes. Covers days missed while the
+    # server was down, and data the watch syncs late (resting HR and breathing
+    # rate are daily rollups that can be partial when first fetched).
+    HEALTH_SYNC_WINDOW_DAYS: int = int(os.environ.get("HEALTH_SYNC_WINDOW_DAYS", "3"))
+
+    # Hour that starts a new "gaming day". A session at 1am belongs to the
+    # previous evening, not to the calendar day it happens to fall in.
+    GAMING_DAY_START_HOUR: int = int(os.environ.get("GAMING_DAY_START_HOUR", "4"))
+
 
 settings = Settings()

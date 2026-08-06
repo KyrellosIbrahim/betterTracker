@@ -72,20 +72,7 @@ def get_breathing_rate(target_date: date = Query(default=date.today())):
 @router.get("/health/snapshot", response_model=HealthSnapshotResponse)
 def get_health_snapshot(target_date: date = Query(default=date.today()), db: Session = Depends(get_db)):
     """Fetch all health data for a day and persist it to the database."""
-    hr_response = get_heart_rate(target_date)
-    sleep_response = get_sleep(target_date)
-    br_response = get_breathing_rate(target_date)
-
-    snapshot_data = {
-        "resting_heart_rate": hr_response.resting_heart_rate,
-        "sleep_score": sleep_response.sleep_score,
-        "sleep_duration_minutes": sleep_response.duration_minutes,
-        "deep_minutes": sleep_response.deep_minutes,
-        "light_minutes": sleep_response.light_minutes,
-        "rem_minutes": sleep_response.rem_minutes,
-        "awake_minutes": sleep_response.awake_minutes,
-        "breathing_rate": br_response.breathing_rate,
-    }
+    snapshot_data = fitbit_service.build_snapshot_data(target_date)
     fitbit_service.save_health_snapshot(target_date, snapshot_data, db)
 
     return HealthSnapshotResponse(date=target_date, **snapshot_data)

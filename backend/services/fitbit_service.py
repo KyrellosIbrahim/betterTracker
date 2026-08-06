@@ -10,6 +10,7 @@ from config import settings
 from database import SessionLocal
 from models.health_snapshot import HealthSnapshot
 from models.oauth_token import OAuthToken
+from services import sleep_score_service
 
 # In-memory cache of the Google tokens, backed by the oauth_tokens table
 # so they survive server restarts.
@@ -183,6 +184,35 @@ def fetch_breathing_rate(target_date: date) -> dict:
 def fetch_exercise(target_date: date) -> dict:
     """Fetch exercise/activity data for a specific day."""
     return _fetch_data("exercise", target_date, action="list")
+
+
+def build_snapshot_data(target_date: date) -> dict:
+    """
+    Fetch every health metric for a day and map it to HealthSnapshot column values.
+    Shared by the /health/snapshot endpoint and the backfill script so the two
+    can't drift apart. Values are None where the API had no data for that day.
+    """
+    hr_data = fetch_resting_heart_rate(target_date)
+    hr_points = hr_data.get("dataPoints") or []
+    resting_hr = hr_points[0]["dailyRestingHeartRate"]["beatsPerMinute"] if hr_points else None
+
+    br_data = fetch_breathing_rate(target_date)
+    br_points = br_data.get("dataPoints") or []
+    breathing_rate = br_points[0]["dailyRespiratoryRate"]["breathsPerMinute"] if br_points else None
+
+    sleep = sleep_score_service.calculate_sleep_score(fetch_sleep(target_date)) or {}
+    metrics = sleep.get("metrics", {})
+
+    return {
+        "resting_heart_rate": int(resting_hr) if resting_hr is not None else None,
+        "sleep_score": sleep.get("score"),
+        "sleep_duration_minutes": metrics.get("minutes_asleep"),
+        "deep_minutes": metrics.get("deep_minutes"),
+        "light_minutes": metrics.get("light_minutes"),
+        "rem_minutes": metrics.get("rem_minutes"),
+        "awake_minutes": metrics.get("awake_minutes"),
+        "breathing_rate": float(breathing_rate) if breathing_rate is not None else None,
+    }
 
 
 def save_health_snapshot(target_date: date, data: dict, db: Session) -> HealthSnapshot:

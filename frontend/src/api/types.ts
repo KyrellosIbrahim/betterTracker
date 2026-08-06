@@ -91,26 +91,39 @@ export interface ActiveSession {
 
 // --- Insights (backend/services/insights_service.py) ---
 
-export interface GenreInsight {
-  genre: string
+// NOTE: every insight below joins a gaming session to the FOLLOWING morning's
+// health snapshot, and treats a gaming day as 4am–4am. So `avg_sleep_score`
+// means "sleep the morning after playing", and `recovery_days` counts distinct
+// mornings (not sessions) behind the averages.
+
+interface InsightMetrics {
   session_count: number
+  recovery_days: number
   avg_session_minutes: number | null
   avg_resting_hr: number | null
   avg_sleep_score: number | null
+  avg_sleep_duration_minutes: number | null
   avg_breathing_rate: number | null
 }
 
-export interface CompetitiveInsight {
+export interface GenreInsight extends InsightMetrics {
+  genre: string
+}
+
+export interface CompetitiveInsight extends InsightMetrics {
   is_competitive: boolean
-  session_count: number
-  avg_session_minutes: number | null
-  avg_resting_hr: number | null
+}
+
+export interface GenreSleepImpact {
+  genre: string
   avg_sleep_score: number | null
-  avg_breathing_rate: number | null
+  sample_days: number
 }
 
 export interface SleepImpactBucket {
   avg_sleep_score: number | null
+  avg_sleep_duration_minutes: number | null
+  avg_resting_hr: number | null
   sample_days: number
 }
 

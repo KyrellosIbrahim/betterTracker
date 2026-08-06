@@ -2,6 +2,7 @@
 # Registers all controller routers, sets up CORS, and creates DB tables on startup.
 
 from contextlib import asynccontextmanager
+from datetime import date, timedelta
 from fastapi import FastAPI
 import asyncio
 from config import settings
@@ -15,10 +16,22 @@ from controllers.insights_controller import router as insights_router
 # Create all DB tables on startup
 Base.metadata.create_all(bind=engine)
 
+# Strong references to background tasks. asyncio only holds a weak reference,
+# so without this the tasks can be garbage-collected mid-flight.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> None:
+    """Start a background task and keep a reference to it until it finishes."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    asyncio.create_task(poll_currently_playing())
+    _spawn(poll_currently_playing())
+    _spawn(sync_health_snapshots())
     yield
 
 
@@ -55,7 +68,8 @@ async def poll_currently_playing():
         await asyncio.sleep(settings.STEAM_POLL_INTERVAL)
         db = SessionLocal()
         try:
-            player = steam_service.get_currently_playing()
+            # requests is blocking — keep it off the event loop
+            player = await asyncio.to_thread(steam_service.get_currently_playing)
             game_id = player.get("gameid")
             active_session = steam_service.get_active_session(db)
 
@@ -83,6 +97,33 @@ async def poll_currently_playing():
                     print(f"Session ended: {active_session.game_name}")
         except Exception as e:
             print(f"Polling error: {e}")
+        finally:
+            db.close()
+
+
+async def sync_health_snapshots():
+    """
+    Keep a trailing window of health snapshots topped up.
+
+    Runs on an interval rather than once a day so downtime or a restart can't
+    skip a day: every tick re-fetches the last HEALTH_SYNC_WINDOW_DAYS days and
+    upserts them, which also picks up data the watch synced late.
+    """
+    from database import SessionLocal
+    from services import fitbit_service
+
+    while True:
+        await asyncio.sleep(settings.HEALTH_SYNC_INTERVAL)
+        db = SessionLocal()
+        try:
+            for offset in range(settings.HEALTH_SYNC_WINDOW_DAYS):
+                target = date.today() - timedelta(days=offset)
+                # build_snapshot_data makes blocking HTTP calls — run it in a thread
+                data = await asyncio.to_thread(fitbit_service.build_snapshot_data, target)
+                if any(value is not None for value in data.values()):
+                    fitbit_service.save_health_snapshot(target, data, db)
+        except Exception as e:
+            print(f"Health sync error: {e}")
         finally:
             db.close()
 
