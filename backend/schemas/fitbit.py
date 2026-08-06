@@ -3,7 +3,7 @@
 
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
+from datetime import date, datetime
 
 
 class HeartRateResponse(BaseModel):
@@ -51,3 +51,12 @@ class HealthSnapshotResponse(BaseModel):
     rem_minutes: Optional[int] = None
     awake_minutes: Optional[int] = None
     breathing_rate: Optional[float] = None
+
+
+class TokenStatusResponse(BaseModel):
+    """Google OAuth token status."""
+    model_config = {"from_attributes": True}
+
+    connected: bool
+    has_refresh_token: bool = False
+    updated_at: Optional[datetime] = None

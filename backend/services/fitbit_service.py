@@ -4,6 +4,7 @@
 
 import requests
 from datetime import date, timedelta
+from schemas.fitbit import TokenStatusResponse
 from sqlalchemy.orm import Session
 from urllib.parse import urlencode
 from config import settings
@@ -231,3 +232,15 @@ def save_health_snapshot(target_date: date, data: dict, db: Session) -> HealthSn
     db.commit()
     db.refresh(snapshot)
     return snapshot
+
+
+def get_token_status(db: Session) -> TokenStatusResponse:
+    """Return the Google OAuth token status, whether or not a token is valid or expired."""
+
+    current_token = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
+    return TokenStatusResponse(
+        connected=bool(current_token and current_token.access_token),
+        has_refresh_token=bool(current_token and current_token.refresh_token),
+        updated_at=current_token.updated_at if current_token else None,
+    )
+    

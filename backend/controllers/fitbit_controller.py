@@ -88,3 +88,8 @@ def list_health_snapshots(days: int = Query(default=30, le=365), db: Session = D
         .order_by(HealthSnapshot.date)
         .all()
     )
+
+
+@router.get("/auth/status", response_model=fitbit_service.TokenStatusResponse)
+def get_token_status(db: Session = Depends(get_db)):
+    return fitbit_service.get_token_status(db)
