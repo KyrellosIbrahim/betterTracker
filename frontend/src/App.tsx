@@ -15,14 +15,60 @@ import { useEffect, useState } from 'react'
 import {
   GOOGLE_LOGIN_URL,
   getActiveSession,
+  getAuthStatus,
   getInsightsByCompetitive,
   getSnapshot,
   getSnapshotHistory,
 } from './api/client'
-import type { ActiveSession, CompetitiveInsight, HealthSnapshot } from './api/types'
+import type { ActiveSession, AuthStatus, CompetitiveInsight, HealthSnapshot } from './api/types'
 import { MetricRing } from './components/MetricRing'
 import { TrendChart } from './components/TrendChart'
 import { ComparisonCard } from './components/ComparisonCard'
+
+// Derive the UI state once, so the booleans don't get scattered through JSX.
+// 'unknown' covers the in-flight fetch — rendering nothing beats flashing the
+// wrong state on every page load.
+type AuthState = 'unknown' | 'connected' | 'reconnect' | 'disconnected'
+
+function authState(status: AuthStatus | null): AuthState {
+  if (!status) return 'unknown'
+  if (status.connected) return 'connected'
+  // needs_reauth means the grant died — looks like "not connected" to the user,
+  // but it means data silently stopped updating, so it gets different wording.
+  return status.needs_reauth ? 'reconnect' : 'disconnected'
+}
+
+function AuthIndicator({ status }: { status: AuthStatus | null }) {
+  const state = authState(status)
+  if (state === 'unknown') return null
+
+  if (state === 'connected') {
+    const synced = status?.last_success_at
+    return (
+      <span className="text-sm text-emerald-600 dark:text-emerald-400">
+        Connected ✓
+        {synced && (
+          <span className="ml-2 text-zinc-500 dark:text-zinc-400">
+            synced {new Date(synced).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        )}
+        {/* Non-fatal failure (e.g. invalid_client) — reconnecting wouldn't fix it,
+            so warn rather than prompting. */}
+        {status?.last_error && (
+          <span className="ml-2 text-amber-600 dark:text-amber-400" title={status.last_error}>
+            ⚠
+          </span>
+        )}
+      </span>
+    )
+  }
+
+  return (
+    <a href={GOOGLE_LOGIN_URL} className="text-sm text-violet-600 underline dark:text-violet-400">
+      {state === 'reconnect' ? 'Reconnect Google Health' : 'Connect Google Health'}
+    </a>
+  )
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -41,6 +87,7 @@ function App() {
   const [competitive, setCompetitive] = useState<CompetitiveInsight[]>([])
   const [nowPlaying, setNowPlaying] = useState<ActiveSession | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
 
   useEffect(() => {
     // getSnapshot also persists today's data, feeding the history/insights
@@ -48,6 +95,7 @@ function App() {
     getSnapshotHistory(30).then(setHistory).catch(console.error)
     getInsightsByCompetitive().then(setCompetitive).catch(console.error)
     getActiveSession().then(setNowPlaying).catch(console.error)
+    getAuthStatus().then(setAuthStatus).catch(console.error)
   }, [])
 
   const competitiveRow = competitive.find((c) => c.is_competitive)
@@ -61,9 +109,7 @@ function App() {
           {nowPlaying && (
             <span className="text-sm text-violet-600 dark:text-violet-400">▶ {nowPlaying.game_name}</span>
           )}
-          <a href={GOOGLE_LOGIN_URL} className="text-sm text-violet-600 underline dark:text-violet-400">
-            Connect Google Health
-          </a>
+          <AuthIndicator status={authStatus} />
         </div>
       </header>
 

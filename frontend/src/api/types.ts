@@ -1,6 +1,16 @@
 // TypeScript mirrors of the backend Pydantic schemas.
 // Keep in sync with backend/schemas/*.py.
 
+// --- Auth ---
+export interface AuthStatus {
+  connected: boolean
+  has_refresh_token: boolean
+  updated_at: string | null
+  needs_reauth: boolean
+  last_error: string | null
+  last_success_at: string | null
+}
+
 // --- Health (backend/schemas/fitbit.py) ---
 
 export interface SleepScoreComponents {

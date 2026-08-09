@@ -3,6 +3,7 @@
 
 import type {
   ActiveSession,
+  AuthStatus,
   BreathingRateResponse,
   CompetitiveInsight,
   CurrentlyPlaying,
@@ -27,6 +28,10 @@ async function get<T>(path: string): Promise<T> {
   if (!response.ok) throw new Error(`${path} failed: ${response.status}`)
   return response.json()
 }
+
+// --- Auth ---
+
+export const getAuthStatus = () => get<AuthStatus>('/auth/status')
 
 // --- Health ---
 
