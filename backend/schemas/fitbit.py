@@ -22,6 +22,9 @@ class SleepScoreComponents(BaseModel):
 class SleepResponse(BaseModel):
     """Sleep data for a given day (from sleep data type)."""
     date: date
+    # Local wall-clock bedtime and wake time, comparable with game session times.
+    sleep_start: Optional[datetime] = None
+    sleep_end: Optional[datetime] = None
     duration_minutes: Optional[float] = None
     deep_minutes: Optional[int] = None
     light_minutes: Optional[int] = None
@@ -51,6 +54,8 @@ class HealthSnapshotResponse(BaseModel):
     rem_minutes: Optional[int] = None
     awake_minutes: Optional[int] = None
     breathing_rate: Optional[float] = None
+    sleep_start: Optional[datetime] = None
+    sleep_end: Optional[datetime] = None
 
 
 class TokenStatusResponse(BaseModel):

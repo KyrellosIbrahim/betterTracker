@@ -17,10 +17,19 @@ import {
   getActiveSession,
   getAuthStatus,
   getInsightsByCompetitive,
-  getSnapshot,
+  getLateNightImpact,
   getSnapshotHistory,
+  getWindDownImpact,
 } from './api/client'
-import type { ActiveSession, AuthStatus, CompetitiveInsight, HealthSnapshot } from './api/types'
+import type {
+  ActiveSession,
+  AuthStatus,
+  CompetitiveInsight,
+  HealthSnapshot,
+  LateNightImpact,
+  SleepImpactBucket,
+  WindDownImpact,
+} from './api/types'
 import { MetricRing } from './components/MetricRing'
 import { TrendChart } from './components/TrendChart'
 import { ComparisonCard } from './components/ComparisonCard'
@@ -70,6 +79,13 @@ function AuthIndicator({ status }: { status: AuthStatus | null }) {
   )
 }
 
+// Minutes as clock time: 384 -> "6:24". Rounding to whole minutes before
+// splitting avoids a "6:60" from something like 383.7.
+function formatDuration(minutes: number): string {
+  const total = Math.round(minutes)
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
@@ -82,24 +98,38 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function App() {
-  const [today, setToday] = useState<HealthSnapshot | null>(null)
   const [history, setHistory] = useState<HealthSnapshot[]>([])
   const [competitive, setCompetitive] = useState<CompetitiveInsight[]>([])
   const [nowPlaying, setNowPlaying] = useState<ActiveSession | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
+  const [windDown, setWindDown] = useState<WindDownImpact | null>(null)
+  const [lateNight, setLateNight] = useState<LateNightImpact | null>(null)
 
   useEffect(() => {
-    // getSnapshot also persists today's data, feeding the history/insights
-    getSnapshot().then(setToday).catch((e) => setError(String(e)))
     getSnapshotHistory(30).then(setHistory).catch(console.error)
     getInsightsByCompetitive().then(setCompetitive).catch(console.error)
     getActiveSession().then(setNowPlaying).catch(console.error)
-    getAuthStatus().then(setAuthStatus).catch(console.error)
+    getWindDownImpact().then(setWindDown).catch(console.error)
+    getLateNightImpact().then(setLateNight).catch(console.error)
+    // have set error for this one, since this one affects the rendering of the auth indicator.
+    getAuthStatus().then(setAuthStatus).catch((e) => setError(String(e)))
   }, [])
+
+  // Every bucket insight has the same shape, so build its card row the same way.
+  const bucketRow = (label: string, bucket: SleepImpactBucket | undefined) => ({
+    label,
+    value: bucket?.avg_sleep_score,
+    sampleDays: bucket?.sample_days,
+    spread: [bucket?.sleep_score_min ?? null, bucket?.sleep_score_max ?? null] as [number | null, number | null],
+  })
 
   const competitiveRow = competitive.find((c) => c.is_competitive)
   const casualRow = competitive.find((c) => !c.is_competitive)
+  const latest = history.at(-1) ?? null
+
+  // Kept in minutes so the ring fills exactly; formatted for display only.
+  const sleepMinutes = latest?.sleep_duration_minutes ?? null
 
   return (
     <main className="mx-auto max-w-4xl px-5 pt-6 pb-16">
@@ -113,21 +143,26 @@ function App() {
         </div>
       </header>
 
-      {error && <p className="mt-2 text-sm text-rose-500">Backend unreachable or not authed: {error}</p>}
+      {/* Only the auth-status fetch sets this, so name that specifically — the
+          old "unreachable or not authed" wording claimed the backend was down
+          whenever any single call failed. */}
+      {error && (
+        <p className="mt-2 text-sm text-rose-500">Couldn't reach the backend to check the Google Health connection: {error}</p>
+      )}
 
       {/* --- Today's rings --- */}
-      <Section title="Today">
+      <Section title={`${latest?.date ?? 'Latest'}`}>
         <div className="flex flex-wrap gap-8">
-          <MetricRing label="Sleep score" value={today?.sleep_score} max={100} color="#7c5cff" />
+          <MetricRing label="Sleep score" value={latest?.sleep_score} max={100} color="#7c5cff" />
           <MetricRing
             label="Sleep duration"
-            value={today?.sleep_duration_minutes != null ? Math.round(today.sleep_duration_minutes / 6) / 10 : null}
-            max={8}
-            unit="h"
+            value={sleepMinutes}
+            max={480} /* 8h goal, in minutes */
+            display={sleepMinutes != null ? formatDuration(sleepMinutes) : undefined}
             color="#4fc3f7"
           />
           {/* TODO: more rings — resting HR (inverted: lower is better?), deep sleep vs 90min goal, ... */}
-          <MetricRing label="Resting HR" value={today?.resting_heart_rate} max={100} unit=" bpm" color="#ff6b81" />
+          <MetricRing label="Resting HR" value={latest?.resting_heart_rate} max={100} unit=" bpm" color="#ff6b81" />
         </div>
       </Section>
 
@@ -147,11 +182,44 @@ function App() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <ComparisonCard
             title="Avg resting HR: competitive vs casual days"
+            emptyMessage="No sessions recorded yet — play something to start comparing."
             rows={[
-              { label: 'Competitive', value: competitiveRow?.avg_resting_hr, unit: 'bpm' },
-              { label: 'Casual', value: casualRow?.avg_resting_hr, unit: 'bpm' },
+              {
+                label: 'Competitive',
+                value: competitiveRow?.avg_resting_hr,
+                unit: 'bpm',
+                sampleDays: competitiveRow?.recovery_days,
+                spread: [competitiveRow?.resting_hr_min ?? null, competitiveRow?.resting_hr_max ?? null],
+              },
+              {
+                label: 'Casual',
+                value: casualRow?.avg_resting_hr,
+                unit: 'bpm',
+                sampleDays: casualRow?.recovery_days,
+                spread: [casualRow?.resting_hr_min ?? null, casualRow?.resting_hr_max ?? null],
+              },
             ]}
           />
+          <ComparisonCard
+            title="Sleep score by wind-down gap (last session → bed)"
+            emptyMessage="No sessions with a measurable wind-down gap yet."
+            rows={[
+              bucketRow('<30 min', windDown?.under_30min),
+              bucketRow('30–90 min', windDown?.['30_to_90min']),
+              bucketRow('90+ min', windDown?.over_90min),
+            ]}
+          />
+
+          <ComparisonCard
+            title="Sleep score: late-night gaming vs earlier"
+            emptyMessage="No sessions recorded yet."
+            rows={[
+              bucketRow('Late night', lateNight?.late_night_gaming),
+              bucketRow('Earlier', lateNight?.earlier_gaming),
+              bucketRow('No gaming', lateNight?.no_gaming),
+            ]}
+          />
+
           {/* TODO: sleep impact card (getSleepImpactCompetitive), genre breakdown table, ... */}
         </div>
       </Section>

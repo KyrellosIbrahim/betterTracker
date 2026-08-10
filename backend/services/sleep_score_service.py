@@ -20,6 +20,8 @@
 # Health API reports minutesToFallAsleep as 0 on every session for this
 # device, so scoring it would hand out free points.
 
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
@@ -164,6 +166,14 @@ def _minutes(container: dict, key: str) -> float:
         return 0.0
 
 
+def _local_time(interval: dict, time_key: str, offset_key: str) -> datetime | None:
+    """
+    Convert an API timestamp + its UTC offset into naive local wall time, so it's
+    directly comparable with GameSession.start_time (which datetime.now() stores
+    as naive local).
+    """
+    return datetime.fromisoformat(interval[time_key]).astimezone().replace(tzinfo=None) if interval.get(time_key) else None
+
 def _stage_minutes(summary: dict) -> dict:
     """Extract minutes per stage type from the summary's stagesSummary list."""
     return {stage.get("type"): _minutes(stage, "minutes") for stage in summary.get("stagesSummary", [])}
@@ -207,6 +217,8 @@ def extract_metrics(sleep_data: dict) -> dict | None:
         "efficiency": round(minutes_asleep / minutes_in_period, 3) if minutes_in_period else None,
         "has_stages": session.get("type") == "STAGES"
         and bool(stages.get("DEEP", 0) or stages.get("REM", 0)),
+        "sleep_start": _local_time(session.get("interval", {}), "startTime", "startUtcOffset"),
+        "sleep_end": _local_time(session.get("interval", {}), "endTime", "endUtcOffset"),
     }
 
 
@@ -259,6 +271,8 @@ def score_metrics(metrics: dict, anchors: dict | None = None) -> dict:
             "rem_minutes": int(metrics["rem_minutes"]),
             "awake_minutes": int(metrics["awake_minutes"]),
             "efficiency": metrics.get("efficiency"),
+            "sleep_start": metrics.get("sleep_start"),
+            "sleep_end": metrics.get("sleep_end")
         },
     }
 

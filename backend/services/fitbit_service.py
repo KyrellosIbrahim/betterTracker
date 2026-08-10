@@ -256,6 +256,8 @@ def build_snapshot_data(target_date: date) -> dict:
         "rem_minutes": metrics.get("rem_minutes"),
         "awake_minutes": metrics.get("awake_minutes"),
         "breathing_rate": float(breathing_rate) if breathing_rate is not None else None,
+        "sleep_start": metrics.get("sleep_start"),
+        "sleep_end": metrics.get("sleep_end"),
     }
 
 

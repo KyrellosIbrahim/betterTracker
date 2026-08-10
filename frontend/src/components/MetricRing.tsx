@@ -3,14 +3,25 @@
 
 interface MetricRingProps {
   label: string
+  /** Drives how far the ring fills. Always numeric, even when `display` overrides the text. */
   value: number | null | undefined
   max: number
   unit?: string
+  /** Overrides the centre text, e.g. "6:24" for a duration held as 384 minutes. */
+  display?: string
   color?: string
   size?: number
 }
 
-export function MetricRing({ label, value, max, unit = '', color = '#7c5cff', size = 120 }: MetricRingProps) {
+export function MetricRing({
+  label,
+  value,
+  max,
+  unit = '',
+  display,
+  color = '#7c5cff',
+  size = 120,
+}: MetricRingProps) {
   const stroke = size * 0.09
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
@@ -49,7 +60,7 @@ export function MetricRing({ label, value, max, unit = '', color = '#7c5cff', si
           dominantBaseline="central"
           className="fill-zinc-900 text-[22px] font-semibold dark:fill-zinc-100"
         >
-          {value == null ? '–' : `${value}${unit}`}
+          {value == null ? '–' : (display ?? `${value}${unit}`)}
         </text>
       </svg>
       <span className="text-[13px] text-zinc-500 dark:text-zinc-400">{label}</span>

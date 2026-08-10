@@ -13,9 +13,11 @@ import type {
   GenreSleepImpact,
   HealthSnapshot,
   HeartRateResponse,
+  LateNightImpact,
   RecentlyPlayedGame,
   SleepImpactCompetitive,
   SleepResponse,
+  WindDownImpact,
 } from './types'
 
 const BASE_URL = 'http://localhost:8000'
@@ -77,6 +79,12 @@ export const getInsightsByCompetitive = () =>
 
 // Next-morning sleep score after each genre, best first.
 export const getSleepImpactByGenre = () => get<GenreSleepImpact[]>('/insights/sleep-impact')
+
+// Sleep bucketed by how long before bed the last session ended.
+export const getWindDownImpact = () => get<WindDownImpact>('/insights/wind-down')
+
+// Sleep after late-night gaming vs earlier gaming vs none.
+export const getLateNightImpact = () => get<LateNightImpact>('/insights/late-night')
 
 export const getSleepImpactCompetitive = () =>
   get<SleepImpactCompetitive>('/insights/sleep-impact-competitive')

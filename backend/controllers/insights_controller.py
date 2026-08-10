@@ -44,3 +44,21 @@ def get_sleep_impact_competitive(db: Session = Depends(get_db)):
     Answers: "do I sleep worse after playing competitive games?"
     """
     return insights_service.get_sleep_impact_by_competitive(db)
+
+
+@router.get("/wind-down")
+def get_wind_down(db: Session = Depends(get_db)):
+    """
+    Sleep bucketed by how long before bed the last session ended.
+    Answers: "does stopping earlier actually help me sleep?"
+    """
+    return insights_service.get_wind_down_impact(db)
+
+
+@router.get("/late-night")
+def get_late_night(db: Session = Depends(get_db)):
+    """
+    Sleep after late-night gaming vs earlier gaming vs no gaming.
+    Answers: "is it the gaming, or just the hour I stop?"
+    """
+    return insights_service.get_late_night_impact(db)

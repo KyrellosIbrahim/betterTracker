@@ -65,5 +65,8 @@ class Settings:
     # previous evening, not to the calendar day it happens to fall in.
     GAMING_DAY_START_HOUR: int = int(os.environ.get("GAMING_DAY_START_HOUR", "4"))
 
+    # A gaming session that ends after this hour counts as "late night"
+    LATE_NIGHT_HOUR: int = int(os.environ.get("LATE_NIGHT_HOUR", "23"))
+
 
 settings = Settings()

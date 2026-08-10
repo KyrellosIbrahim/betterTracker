@@ -67,6 +67,8 @@ def get_sleep(target_date: date = Query(default=date.today())):
     metrics = result["metrics"]
     return SleepResponse(
         date=target_date,
+        sleep_start=metrics.get("sleep_start"),
+        sleep_end=metrics.get("sleep_end"),
         duration_minutes=metrics["minutes_asleep"],
         deep_minutes=metrics["deep_minutes"],
         light_minutes=metrics["light_minutes"],

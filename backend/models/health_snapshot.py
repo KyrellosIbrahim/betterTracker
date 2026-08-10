@@ -1,7 +1,7 @@
 # ORM model for daily health data pulled from the Google Health API.
 # One row per day. Linked to game sessions by date for correlation analysis.
 
-from sqlalchemy import Column, Integer, Float, Date
+from sqlalchemy import Column, Integer, Float, Date, DateTime
 from database import Base
 
 
@@ -11,6 +11,8 @@ class HealthSnapshot(Base):
     id = Column(Integer, primary_key=True, index=True)
     date = Column(Date, unique=True, nullable=False, index=True)
     resting_heart_rate = Column(Integer, nullable=True)
+    sleep_start = Column(DateTime, nullable=True)
+    sleep_end = Column(DateTime, nullable=True)
     sleep_score = Column(Integer, nullable=True)
     sleep_duration_minutes = Column(Float, nullable=True)
     deep_minutes = Column(Integer, nullable=True)
