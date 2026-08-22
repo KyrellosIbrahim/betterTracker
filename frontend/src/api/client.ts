@@ -46,9 +46,15 @@ export const getHeartRate = (date?: string) =>
 export const getBreathingRate = (date?: string) =>
   get<BreathingRateResponse>(`/health/breathing-rate${date ? `?target_date=${date}` : ''}`)
 
-// Fetches from Google Health AND persists the day to the DB.
-export const getSnapshot = (date?: string) =>
-  get<HealthSnapshot>(`/health/snapshot${date ? `?target_date=${date}` : ''}`)
+// Returns the stored day, refetching from Google only when it's stale.
+// force=true bypasses that TTL — for an explicit "refresh now" action.
+export const getSnapshot = (date?: string, force = false) => {
+  const params = new URLSearchParams()
+  if (date) params.set('target_date', date)
+  if (force) params.set('force', 'true')
+  const query = params.toString()
+  return get<HealthSnapshot>(`/health/snapshot${query ? `?${query}` : ''}`)
+}
 
 // Reads stored snapshots (no external calls). Oldest first — feed to trend charts.
 export const getSnapshotHistory = (days = 30) =>

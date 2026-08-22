@@ -43,6 +43,9 @@ export interface BreathingRateResponse {
 
 export interface HealthSnapshot {
   date: string
+  // When this row was last pulled from Google — distinguishes "current" from
+  // "stale but cached". Naive local datetime, no timezone offset.
+  synced_at: string | null
   resting_heart_rate: number | null
   sleep_score: number | null
   sleep_duration_minutes: number | null
@@ -86,6 +89,7 @@ export interface GameSession {
   game_id: number
   game_name: string
   genre: string | null
+  is_competitive: boolean
   start_time: string
   end_time: string | null
   duration_minutes: number | null
@@ -95,6 +99,7 @@ export interface ActiveSession {
   game_id: number
   game_name: string
   genre: string | null
+  is_competitive: boolean
   start_time: string
   elapsed_minutes: number
 }

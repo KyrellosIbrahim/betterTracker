@@ -53,15 +53,12 @@ function AuthIndicator({ status }: { status: AuthStatus | null }) {
   if (state === 'unknown') return null
 
   if (state === 'connected') {
-    const synced = status?.last_success_at
+    // Deliberately no timestamp here: this indicator is about the *connection*.
+    // Data freshness lives next to the data (see the Today section), so the two
+    // aren't confused for each other.
     return (
       <span className="text-sm text-emerald-600 dark:text-emerald-400">
         Connected ✓
-        {synced && (
-          <span className="ml-2 text-zinc-500 dark:text-zinc-400">
-            synced {new Date(synced).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-          </span>
-        )}
         {/* Non-fatal failure (e.g. invalid_client) — reconnecting wouldn't fix it,
             so warn rather than prompting. */}
         {status?.last_error && (
@@ -78,6 +75,21 @@ function AuthIndicator({ status }: { status: AuthStatus | null }) {
       {state === 'reconnect' ? 'Reconnect Google Health' : 'Connect Google Health'}
     </a>
   )
+}
+
+// "just now" / "12 min ago" / "3h ago". The backend sends naive local
+// datetimes, and a date-time string without an offset is parsed as local — the
+// same assumption relativeDay relies on.
+function relativeTime(isoDateTime: string): string {
+  const seconds = (Date.now() - new Date(isoDateTime).getTime()) / 1000
+  if (seconds < 90) return 'just now'
+
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
 }
 
 // Minutes as clock time: 384 -> "6:24". Rounding to whole minutes before
@@ -108,14 +120,49 @@ function hasData(snapshot: HealthSnapshot | null): boolean {
   return snapshot != null && (snapshot.sleep_score != null || snapshot.resting_heart_rate != null)
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
     <section className="mt-8">
-      <h2 className="mb-4 border-b border-zinc-200 pb-2 text-lg font-medium text-zinc-900 dark:border-zinc-700 dark:text-zinc-100">
-        {title}
-      </h2>
+      <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-zinc-200 pb-2 dark:border-zinc-700">
+        <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">{title}</h2>
+        {action}
+      </div>
       {children}
     </section>
+  )
+}
+
+function FreshnessAction({
+  syncedAt,
+  refreshing,
+  onRefresh,
+}: {
+  syncedAt: string | null | undefined
+  refreshing: boolean
+  onRefresh: () => void
+}) {
+  return (
+    <div className="flex items-center gap-3 text-[13px] text-zinc-500 dark:text-zinc-400">
+      {syncedAt && <span title={new Date(syncedAt).toLocaleString()}>Updated {relativeTime(syncedAt)}</span>}
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={refreshing}
+        aria-label="Refresh health data"
+        title="Refetch from Google Health now"
+        className="rounded px-1.5 py-0.5 text-zinc-600 hover:bg-zinc-200 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-700"
+      >
+        <span className={`inline-block ${refreshing ? 'animate-spin' : ''}`}>↻</span>
+      </button>
+    </div>
   )
 }
 
@@ -128,13 +175,14 @@ function App() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
   const [windDown, setWindDown] = useState<WindDownImpact | null>(null)
   const [lateNight, setLateNight] = useState<LateNightImpact | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (force = false) => {
     // getSnapshot refetches from Google only when the stored row is stale
     // (~3ms otherwise), so it's safe on every load. Awaited before the history
     // call so the chart includes any refresh it just triggered.
     try {
-      setToday(await getSnapshot())
+      setToday(await getSnapshot(undefined, force))
     } catch (e) {
       console.error(e)
     }
@@ -156,6 +204,15 @@ function App() {
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [loadAll])
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await loadAll(true)
+    } finally {
+      setRefreshing(false)
+    }
   }, [loadAll])
 
   // Every bucket insight has the same shape, so build its card row the same way.
@@ -195,7 +252,12 @@ function App() {
       )}
 
       {/* --- Today's rings --- */}
-      <Section title={latest ? relativeDay(latest.date) : 'Latest'}>
+      <Section
+        title={latest ? relativeDay(latest.date) : 'Latest'}
+        action={
+          <FreshnessAction syncedAt={latest?.synced_at} refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         <div className="flex flex-wrap gap-8">
           <MetricRing label="Sleep score" value={latest?.sleep_score} max={100} color="#7c5cff" />
           <MetricRing

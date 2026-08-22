@@ -1,6 +1,7 @@
 # FastAPI application entrypoint.
-# Registers all controller routers, sets up CORS, and creates DB tables on startup.
+# Registers all controller routers, sets up CORS, and starts background tasks.
 
+import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from fastapi import FastAPI
@@ -11,6 +12,17 @@ from controllers.steam_controller import router as steam_router
 from controllers.fitbit_controller import router as fitbit_router
 from controllers.session_controller import router as session_router
 from controllers.insights_controller import router as insights_router
+
+# Timestamps and levels on application logs. The background tasks are the only
+# place failures surface — a health sync stopped for 12 days behind bare
+# print() output, so these need to be greppable and time-stamped.
+logging.basicConfig(
+    level=settings.LOG_LEVEL,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+logger = logging.getLogger(__name__)
 
 # Schema is owned by Alembic — run `make migrate` (alembic upgrade head).
 # create_all() used to run here, but it only ever created missing *tables*; it
@@ -90,14 +102,16 @@ async def poll_currently_playing():
                     is_competitive = metadata.is_competitive if metadata else False
                     steam_service.open_session(game_id, game_name, genre, is_competitive, db)
                     competitive = ", competitive" if is_competitive else ""
-                    print(f"Session started: {game_name} ({genre}{competitive})")
+                    logger.info("Session started: %s (%s%s)", game_name, genre, competitive)
             else:
                 # Not playing — close any active session
                 if active_session:
                     steam_service.close_session(active_session, db)
-                    print(f"Session ended: {active_session.game_name}")
+                    logger.info("Session ended: %s", active_session.game_name)
         except Exception as e:
-            print(f"Polling error: {e}")
+            # Usually a transient network blip (wifi drop, laptop sleep); the
+            # loop recovers on the next tick, so this isn't an error.
+            logger.warning("Steam polling failed: %s", e)
         finally:
             db.close()
 
@@ -118,7 +132,7 @@ async def _sync_health_once() -> None:
         # a dozen failing API calls every hour against a token we know is bad.
         status = fitbit_service.fetch_token_status(db)
         if not status["connected"]:
-            print(f"Health sync skipped: {status['last_error'] or 'Google not connected'}")
+            logger.warning("Health sync skipped: %s", status["last_error"] or "Google not connected")
             return
 
         # Because this runs at startup, a dev server reloading on every file
@@ -138,9 +152,11 @@ async def _sync_health_once() -> None:
 
         if synced_any:
             fitbit_service.record_sync_success(db)
-            print(f"Health sync: refreshed {settings.HEALTH_SYNC_WINDOW_DAYS} days through {date.today()}")
-    except Exception as e:
-        print(f"Health sync error: {e}")
+            logger.info("Health sync refreshed %d days through %s", settings.HEALTH_SYNC_WINDOW_DAYS, date.today())
+    except Exception:
+        # Full traceback: this task runs unattended, so a silent failure here
+        # is exactly how two weeks of data went missing.
+        logger.exception("Health sync failed")
     finally:
         db.close()
 

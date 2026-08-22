@@ -68,6 +68,9 @@ class Settings:
     # A gaming session that ends after this hour counts as "late night"
     LATE_NIGHT_HOUR: int = int(os.environ.get("LATE_NIGHT_HOUR", "23"))
 
+    # Log verbosity for application logs (DEBUG/INFO/WARNING/ERROR).
+    LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()
+
     # How old a stored snapshot may be before /health/snapshot refetches it from
     # Google. Keeps the endpoint cheap enough to call on every page load while
     # still returning current data.

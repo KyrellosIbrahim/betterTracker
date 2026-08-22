@@ -1,6 +1,8 @@
 # Routes for Google Health API data and OAuth authentication.
 # Handles the Google OAuth login redirect, token callback, and health data endpoints.
 
+import logging
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -15,6 +17,8 @@ from schemas.fitbit import (
     HealthSnapshotResponse,
     TokenStatusResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Health"])
 
@@ -94,7 +98,7 @@ def get_breathing_rate(target_date: date | None = Query(default=None)):
     target_date = target_date or date.today()
     data = fitbit_service.fetch_breathing_rate(target_date)
     br = data["dataPoints"][0]["dailyRespiratoryRate"]["breathsPerMinute"] if data["dataPoints"] else None
-    print(f"Breathing rate response: {data}")
+    logger.debug("Breathing rate for %s: %s", target_date, br)
     return BreathingRateResponse(date=target_date, breathing_rate=br)
 
 

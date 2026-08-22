@@ -2,6 +2,7 @@
 # Handles the Google OAuth 2.0 authorization flow and fetching health data
 # (heart rate, sleep, breathing rate, exercise logs) via the Health API v4.
 
+import logging
 import requests
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
@@ -11,6 +12,8 @@ from database import SessionLocal
 from models.health_snapshot import HealthSnapshot
 from models.oauth_token import OAuthToken
 from services import sleep_score_service
+
+logger = logging.getLogger(__name__)
 
 # In-memory cache of the Google tokens, backed by the oauth_tokens table
 # so they survive server restarts.
@@ -212,7 +215,7 @@ def _fetch_data(data_type: str, target_date: date, action: str = "list") -> dict
         response = make_request()
 
     if not response.ok:
-        print(f"Google Health API error ({response.status_code}): {response.text}")
+        logger.error("Google Health API %s for %s: %s", response.status_code, data_type, response.text[:300])
     response.raise_for_status()
     return response.json()
 
