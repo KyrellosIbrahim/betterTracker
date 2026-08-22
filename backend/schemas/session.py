@@ -8,16 +8,17 @@ from datetime import datetime
 
 class GameSessionResponse(BaseModel):
     """A single completed game session."""
+    model_config = {"from_attributes": True}
+
     id: int
     game_id: int
     game_name: str
     genre: Optional[str] = None
+    is_competitive: bool = False
     start_time: datetime
     end_time: Optional[datetime] = None
     duration_minutes: Optional[float] = None
 
-    class Config:
-        from_attributes = True
 
 
 class ActiveSessionResponse(BaseModel):
@@ -25,5 +26,6 @@ class ActiveSessionResponse(BaseModel):
     game_id: int
     game_name: str
     genre: Optional[str] = None
+    is_competitive: bool = False
     start_time: datetime
     elapsed_minutes: float

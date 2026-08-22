@@ -31,14 +31,18 @@ class RecentlyPlayedResponse(BaseModel):
 
 
 class GameDetails(BaseModel):
-    """Cached game metadata, manually maintained."""
+    """
+    Cached game metadata, manually maintained.
+    Field name must match GameCache.game_name — with from_attributes, Pydantic
+    reads attributes off the ORM object, so a mismatch is a 500 at response time.
+    """
+    model_config = {"from_attributes": True}
+
     app_id: int
-    name: str
+    game_name: str
     genre: Optional[str] = None
     is_competitive: bool = False
 
-    class Config:
-        from_attributes = True
 
 
 class GameDetailsCreate(BaseModel):

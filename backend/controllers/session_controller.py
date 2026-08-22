@@ -41,6 +41,7 @@ def get_active_session(db: Session = Depends(get_db)):
         game_id=session.game_id,
         game_name=session.game_name,
         genre=session.genre,
+        is_competitive=session.is_competitive,
         start_time=session.start_time,
         elapsed_minutes=round(elapsed, 1),
     )

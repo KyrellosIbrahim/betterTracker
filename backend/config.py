@@ -68,5 +68,10 @@ class Settings:
     # A gaming session that ends after this hour counts as "late night"
     LATE_NIGHT_HOUR: int = int(os.environ.get("LATE_NIGHT_HOUR", "23"))
 
+    # How old a stored snapshot may be before /health/snapshot refetches it from
+    # Google. Keeps the endpoint cheap enough to call on every page load while
+    # still returning current data.
+    SNAPSHOT_MAX_AGE_MINUTES: int = int(os.environ.get("SNAPSHOT_MAX_AGE_MINUTES", "60"))
+
 
 settings = Settings()

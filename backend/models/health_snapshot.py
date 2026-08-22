@@ -20,3 +20,6 @@ class HealthSnapshot(Base):
     rem_minutes = Column(Integer, nullable=True)
     awake_minutes = Column(Integer, nullable=True)
     breathing_rate = Column(Float, nullable=True)
+    # When this row was last pulled from Google. Staleness is per-day: today's
+    # row goes stale hourly, a row from June never needs refetching again.
+    synced_at = Column(DateTime, nullable=True)

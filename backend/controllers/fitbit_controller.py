@@ -47,18 +47,26 @@ def delete_token(db: Session = Depends(get_db)):
     return {"message": "Token deleted successfully"}
 
 # --- Health Data Endpoints ---
+#
+# Every target_date defaults to None rather than date.today(). A default
+# argument is evaluated once at import, so date.today() would freeze "today"
+# at whatever day the server started — a long-running process would quietly
+# keep serving a stale date.
+
 
 @router.get("/health/heartrate", response_model=HeartRateResponse)
-def get_heart_rate(target_date: date = Query(default=date.today())):
+def get_heart_rate(target_date: date | None = Query(default=None)):
     """Fetch resting heart rate for a given day. Defaults to today."""
+    target_date = target_date or date.today()
     data = fitbit_service.fetch_resting_heart_rate(target_date)
     rhr = data["dataPoints"][0]["dailyRestingHeartRate"]["beatsPerMinute"] if data["dataPoints"] else None
     return HeartRateResponse(date=target_date, resting_heart_rate=rhr)
 
 
 @router.get("/health/sleep", response_model=SleepResponse)
-def get_sleep(target_date: date = Query(default=date.today())):
+def get_sleep(target_date: date | None = Query(default=None)):
     """Fetch sleep data for a given day. Defaults to today."""
+    target_date = target_date or date.today()
     data = fitbit_service.fetch_sleep(target_date)
     result = sleep_score_service.calculate_sleep_score(data)
     if result is None:
@@ -81,8 +89,9 @@ def get_sleep(target_date: date = Query(default=date.today())):
 
 
 @router.get("/health/breathing-rate", response_model=BreathingRateResponse)
-def get_breathing_rate(target_date: date = Query(default=date.today())):
+def get_breathing_rate(target_date: date | None = Query(default=None)):
     """Fetch breathing rate for a given day. Defaults to today."""
+    target_date = target_date or date.today()
     data = fitbit_service.fetch_breathing_rate(target_date)
     br = data["dataPoints"][0]["dailyRespiratoryRate"]["breathsPerMinute"] if data["dataPoints"] else None
     print(f"Breathing rate response: {data}")
@@ -90,12 +99,21 @@ def get_breathing_rate(target_date: date = Query(default=date.today())):
 
 
 @router.get("/health/snapshot", response_model=HealthSnapshotResponse)
-def get_health_snapshot(target_date: date = Query(default=date.today()), db: Session = Depends(get_db)):
-    """Fetch all health data for a day and persist it to the database."""
-    snapshot_data = fitbit_service.build_snapshot_data(target_date)
-    fitbit_service.save_health_snapshot(target_date, snapshot_data, db)
-
-    return HealthSnapshotResponse(date=target_date, **snapshot_data)
+def get_health_snapshot(
+    target_date: date | None = Query(default=None),
+    force: bool = Query(default=False, description="Refetch even if the stored row is still fresh"),
+    db: Session = Depends(get_db),
+):
+    """
+    A day's health data, refetched from Google only when the stored row is
+    older than SNAPSHOT_MAX_AGE_MINUTES. Cheap to call on every page load.
+    """
+    target_date = target_date or date.today()
+    snapshot = fitbit_service.get_or_refresh_snapshot(target_date, db, force=force)
+    if snapshot is None:
+        # No data upstream for this day yet (e.g. asked before that night's sleep)
+        return HealthSnapshotResponse(date=target_date)
+    return snapshot
 
 
 @router.get("/health/snapshots", response_model=list[HealthSnapshotResponse])

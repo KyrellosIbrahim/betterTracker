@@ -56,6 +56,9 @@ class HealthSnapshotResponse(BaseModel):
     breathing_rate: Optional[float] = None
     sleep_start: Optional[datetime] = None
     sleep_end: Optional[datetime] = None
+    # When this row was last pulled from Google — lets the client tell "current"
+    # from "stale but cached".
+    synced_at: Optional[datetime] = None
 
 
 class TokenStatusResponse(BaseModel):

@@ -70,13 +70,20 @@ def _record_auth_error(reason: str, needs_reauth: bool = False) -> None:
 
 
 def _clear_reauth():
+    """
+    Reset the auth-failure state after a successful reconnect.
+
+    Deliberately does NOT touch last_success_at: that means "last time we
+    actually pulled health data", and exchanging a token isn't fetching data.
+    Stamping it here made the sync task's freshness check think a fresh sync
+    had just happened, suppressing the first real sync after every reconnect.
+    """
     db = SessionLocal()
     try:
         row = db.query(OAuthToken).filter(OAuthToken.provider == "google").first()
         if row:
             row.needs_reauth = False
             row.last_error = None
-            row.last_success_at = datetime.now()
             db.commit()
     finally:
         db.close()
@@ -263,6 +270,9 @@ def build_snapshot_data(target_date: date) -> dict:
 
 def save_health_snapshot(target_date: date, data: dict, db: Session) -> HealthSnapshot:
     """Persist a day's health data to the database. Updates if already exists."""
+    # Stamped on every write so freshness is tracked per day: today's row goes
+    # stale hourly, while a row from June never needs refetching.
+    data = {**data, "synced_at": datetime.now()}
     existing = db.query(HealthSnapshot).filter(HealthSnapshot.date == target_date).first()
 
     if existing:
@@ -277,6 +287,43 @@ def save_health_snapshot(target_date: date, data: dict, db: Session) -> HealthSn
     db.commit()
     db.refresh(snapshot)
     return snapshot
+
+
+def get_or_refresh_snapshot(
+    target_date: date,
+    db: Session,
+    max_age_minutes: int | None = None,
+    force: bool = False,
+) -> HealthSnapshot | None:
+    """
+    Return a day's stored snapshot, refetching from Google only when it's stale.
+
+    Putting the freshness rule here rather than in the frontend means several
+    open tabs can't each trigger their own refetch, and makes the endpoint cheap
+    enough to call on every page load. Returns None if the day has no data at all.
+    """
+    max_age = settings.SNAPSHOT_MAX_AGE_MINUTES if max_age_minutes is None else max_age_minutes
+    existing = db.query(HealthSnapshot).filter(HealthSnapshot.date == target_date).first()
+
+    if not force and existing is not None:
+        # Past the sync window a day is settled — the watch has long since
+        # uploaded it and Google won't revise it, so a stored row is final no
+        # matter what synced_at says (rows written before that column existed
+        # have none). Without this, any historical date would refetch forever.
+        if (date.today() - target_date).days > settings.HEALTH_SYNC_WINDOW_DAYS:
+            return existing
+
+        if existing.synced_at is not None:
+            age_minutes = (datetime.now() - existing.synced_at).total_seconds() / 60
+            if age_minutes < max_age:
+                return existing
+
+    data = build_snapshot_data(target_date)
+    if all(value is None for value in data.values()):
+        # Nothing upstream for this day — keep whatever we already had rather
+        # than writing an empty row.
+        return existing
+    return save_health_snapshot(target_date, data, db)
 
 
 def fetch_token_status(db: Session) -> dict:

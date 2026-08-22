@@ -11,13 +11,14 @@
 //   - Weekly total playtime vs weekly avg sleep score
 //   - "Best/worst sleep this month" cards with what you played that day
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   GOOGLE_LOGIN_URL,
   getActiveSession,
   getAuthStatus,
   getInsightsByCompetitive,
   getLateNightImpact,
+  getSnapshot,
   getSnapshotHistory,
   getWindDownImpact,
 } from './api/client'
@@ -86,6 +87,27 @@ function formatDuration(minutes: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
 }
 
+// "Today" / "Yesterday" / "Mon, Aug 17". The snapshot the dashboard shows isn't
+// always today's — before that night's sleep syncs, the newest row is
+// yesterday's — so the heading names the day the data actually belongs to.
+function relativeDay(isoDate: string): string {
+  // Append a time so it parses as LOCAL midnight; a bare "2026-08-22" is parsed
+  // as UTC and would render as the previous day west of Greenwich.
+  const day = new Date(`${isoDate}T00:00:00`)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const daysAgo = Math.round((today.getTime() - day.getTime()) / 86_400_000)
+  if (daysAgo === 0) return 'Today'
+  if (daysAgo === 1) return 'Yesterday'
+  return day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+// A row can exist but be empty — asked before that night's sleep reached Google.
+function hasData(snapshot: HealthSnapshot | null): boolean {
+  return snapshot != null && (snapshot.sleep_score != null || snapshot.resting_heart_rate != null)
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
@@ -98,6 +120,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function App() {
+  const [today, setToday] = useState<HealthSnapshot | null>(null)
   const [history, setHistory] = useState<HealthSnapshot[]>([])
   const [competitive, setCompetitive] = useState<CompetitiveInsight[]>([])
   const [nowPlaying, setNowPlaying] = useState<ActiveSession | null>(null)
@@ -106,7 +129,15 @@ function App() {
   const [windDown, setWindDown] = useState<WindDownImpact | null>(null)
   const [lateNight, setLateNight] = useState<LateNightImpact | null>(null)
 
-  useEffect(() => {
+  const loadAll = useCallback(async () => {
+    // getSnapshot refetches from Google only when the stored row is stale
+    // (~3ms otherwise), so it's safe on every load. Awaited before the history
+    // call so the chart includes any refresh it just triggered.
+    try {
+      setToday(await getSnapshot())
+    } catch (e) {
+      console.error(e)
+    }
     getSnapshotHistory(30).then(setHistory).catch(console.error)
     getInsightsByCompetitive().then(setCompetitive).catch(console.error)
     getActiveSession().then(setNowPlaying).catch(console.error)
@@ -115,6 +146,17 @@ function App() {
     // have set error for this one, since this one affects the rendering of the auth indicator.
     getAuthStatus().then(setAuthStatus).catch((e) => setError(String(e)))
   }, [])
+
+  useEffect(() => {
+    loadAll()
+    // Refresh when the tab is looked at again rather than on a timer — a
+    // background tab shouldn't poll, and the backend TTL makes returning cheap.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadAll()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [loadAll])
 
   // Every bucket insight has the same shape, so build its card row the same way.
   const bucketRow = (label: string, bucket: SleepImpactBucket | undefined) => ({
@@ -126,7 +168,9 @@ function App() {
 
   const competitiveRow = competitive.find((c) => c.is_competitive)
   const casualRow = competitive.find((c) => !c.is_competitive)
-  const latest = history.at(-1) ?? null
+  // Prefer today's freshly-synced row; fall back to the newest stored day when
+  // today has nothing yet (e.g. loading the dashboard before sleep has synced).
+  const latest = hasData(today) ? today : (history.at(-1) ?? null)
 
   // Kept in minutes so the ring fills exactly; formatted for display only.
   const sleepMinutes = latest?.sleep_duration_minutes ?? null
@@ -151,7 +195,7 @@ function App() {
       )}
 
       {/* --- Today's rings --- */}
-      <Section title={`${latest?.date ?? 'Latest'}`}>
+      <Section title={latest ? relativeDay(latest.date) : 'Latest'}>
         <div className="flex flex-wrap gap-8">
           <MetricRing label="Sleep score" value={latest?.sleep_score} max={100} color="#7c5cff" />
           <MetricRing

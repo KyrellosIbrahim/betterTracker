@@ -18,13 +18,10 @@ import statistics as st
 import time
 from datetime import date, datetime, timedelta
 
-from database import Base, SessionLocal, engine
+from database import SessionLocal
 from models.health_snapshot import HealthSnapshot
 from models.sleep_baseline import SleepBaseline
 from services import fitbit_service, sleep_score_service
-
-# Safe to run standalone (outside the FastAPI app, which normally creates tables).
-Base.metadata.create_all(bind=engine)
 
 MIN_SAMPLE_DAYS = 14
 REQUEST_DELAY_SECONDS = 0.2
