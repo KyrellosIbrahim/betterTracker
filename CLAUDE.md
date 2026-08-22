@@ -6,6 +6,11 @@ competitive gaming hurt my recovery?**
 
 ## Read this first
 
+**`ROADMAP.md`** has the current state and the prioritized next steps. The short
+version: the pipeline is complete, but there are 72 days of health data against
+3 days of gaming data, so every insight is starved. Session capture reliability
+beats any new feature — health data can be refetched, Steam sessions cannot.
+
 **`CHANGELOG.md` has a "Deliberate decisions — do not revert" table.** Several
 things in this codebase look like bugs or oversights and are not — they were
 arrived at after the obvious version failed. Check that table before changing:
