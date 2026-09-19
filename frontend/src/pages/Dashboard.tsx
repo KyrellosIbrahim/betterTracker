@@ -1,23 +1,11 @@
-// Overview tab — the migrated original dashboard: today's rings, trend charts,
-// and the correlation insight cards. Uses MetricRing + the interactive Recharts
-// LineTrend + ComparisonCard. Phase 3 moves the game-correlation cards to the
-// Games tab.
+// Overview tab — today's rings, trend charts, and a single gaming-vs-recovery
+// teaser (the full set of correlation cards lives on the Games tab). Uses
+// MetricRing + the interactive Recharts LineTrend + ComparisonCard.
 
 import { useCallback, useEffect, useState } from 'react'
-import {
-  getInsightsByCompetitive,
-  getLateNightImpact,
-  getSnapshot,
-  getSnapshotHistory,
-  getWindDownImpact,
-} from '../api/client'
-import type {
-  CompetitiveInsight,
-  HealthSnapshot,
-  LateNightImpact,
-  SleepImpactBucket,
-  WindDownImpact,
-} from '../api/types'
+import { Link } from 'react-router-dom'
+import { getInsightsByCompetitive, getSnapshot, getSnapshotHistory } from '../api/client'
+import type { CompetitiveInsight, HealthSnapshot } from '../api/types'
 import { MetricRing } from '../components/MetricRing'
 import { LineTrend } from '../components/charts/LineTrend'
 import { ComparisonCard } from '../components/ComparisonCard'
@@ -36,8 +24,6 @@ export function Dashboard() {
   const [today, setToday] = useState<HealthSnapshot | null>(null)
   const [history, setHistory] = useState<HealthSnapshot[]>([])
   const [competitive, setCompetitive] = useState<CompetitiveInsight[]>([])
-  const [windDown, setWindDown] = useState<WindDownImpact | null>(null)
-  const [lateNight, setLateNight] = useState<LateNightImpact | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
   const loadAll = useCallback(async (force = false) => {
@@ -51,8 +37,6 @@ export function Dashboard() {
     }
     getSnapshotHistory(30).then(setHistory).catch(console.error)
     getInsightsByCompetitive().then(setCompetitive).catch(console.error)
-    getWindDownImpact().then(setWindDown).catch(console.error)
-    getLateNightImpact().then(setLateNight).catch(console.error)
   }, [])
 
   useEffect(() => {
@@ -72,14 +56,6 @@ export function Dashboard() {
       setRefreshing(false)
     }
   }, [loadAll])
-
-  // Every bucket insight has the same shape, so build its card row the same way.
-  const bucketRow = (label: string, bucket: SleepImpactBucket | undefined) => ({
-    label,
-    value: bucket?.avg_sleep_score,
-    sampleDays: bucket?.sample_days,
-    spread: [bucket?.sleep_score_min ?? null, bucket?.sleep_score_max ?? null] as [number | null, number | null],
-  })
 
   const competitiveRow = competitive.find((c) => c.is_competitive)
   const casualRow = competitive.find((c) => !c.is_competitive)
@@ -140,47 +116,34 @@ export function Dashboard() {
         </div>
       </Section>
 
-      <Section title="Gaming vs recovery">
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <ComparisonCard
-            title="Avg resting HR: competitive vs casual days"
-            emptyMessage="No sessions recorded yet — play something to start comparing."
-            rows={[
-              {
-                label: 'Competitive',
-                value: competitiveRow?.avg_resting_hr,
-                unit: 'bpm',
-                sampleDays: competitiveRow?.recovery_days,
-                spread: [competitiveRow?.resting_hr_min ?? null, competitiveRow?.resting_hr_max ?? null],
-              },
-              {
-                label: 'Casual',
-                value: casualRow?.avg_resting_hr,
-                unit: 'bpm',
-                sampleDays: casualRow?.recovery_days,
-                spread: [casualRow?.resting_hr_min ?? null, casualRow?.resting_hr_max ?? null],
-              },
-            ]}
-          />
-          <ComparisonCard
-            title="Sleep score by wind-down gap (last session → bed)"
-            emptyMessage="No sessions with a measurable wind-down gap yet."
-            rows={[
-              bucketRow('<30 min', windDown?.under_30min),
-              bucketRow('30–90 min', windDown?.['30_to_90min']),
-              bucketRow('90+ min', windDown?.over_90min),
-            ]}
-          />
-          <ComparisonCard
-            title="Sleep score: late-night gaming vs earlier"
-            emptyMessage="No sessions recorded yet."
-            rows={[
-              bucketRow('Late night', lateNight?.late_night_gaming),
-              bucketRow('Earlier', lateNight?.earlier_gaming),
-              bucketRow('No gaming', lateNight?.no_gaming),
-            ]}
-          />
-        </div>
+      <Section
+        title="Gaming vs recovery"
+        action={
+          <Link to="/games" className="text-[13px] font-medium text-accent hover:underline">
+            See all in Games →
+          </Link>
+        }
+      >
+        <ComparisonCard
+          title="Avg resting HR: competitive vs casual days"
+          emptyMessage="No sessions recorded yet — play something to start comparing."
+          rows={[
+            {
+              label: 'Competitive',
+              value: competitiveRow?.avg_resting_hr,
+              unit: 'bpm',
+              sampleDays: competitiveRow?.recovery_days,
+              spread: [competitiveRow?.resting_hr_min ?? null, competitiveRow?.resting_hr_max ?? null],
+            },
+            {
+              label: 'Casual',
+              value: casualRow?.avg_resting_hr,
+              unit: 'bpm',
+              sampleDays: casualRow?.recovery_days,
+              spread: [casualRow?.resting_hr_min ?? null, casualRow?.resting_hr_max ?? null],
+            },
+          ]}
+        />
       </Section>
     </>
   )

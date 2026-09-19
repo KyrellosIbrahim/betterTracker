@@ -15,3 +15,15 @@ export const metricColors = {
 } as const
 
 export type MetricKey = keyof typeof metricColors
+
+// Sleep-stage palette, deepest→lightest, with awake set apart. Reused by the
+// per-night stage bar and the stage-composition trend so a stage reads the same
+// in both.
+export const stageColors = {
+  deep: '#4338ca', // indigo
+  rem: '#7c5cff', // violet
+  light: '#4fc3f7', // cyan
+  awake: '#64647c', // faint gray — time out of sleep
+} as const
+
+export type SleepStage = keyof typeof stageColors

@@ -49,3 +49,15 @@ export function weekdayShort(isoDate: string): string {
 export function monthDay(isoDate: string): string {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
+
+// Time-of-day from a naive local datetime: "2026-08-05T22:25:00" -> "10:25 PM".
+export function clockTime(isoDateTime: string): string {
+  return new Date(isoDateTime).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+// Hours+minutes for a duration label: 384 -> "6h 24". Distinct from
+// formatDuration ("6:24") — used where the clock-time reading would be ambiguous.
+export function formatHm(minutes: number): string {
+  const total = Math.round(minutes)
+  return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, '0')}`
+}
