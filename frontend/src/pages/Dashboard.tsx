@@ -1,7 +1,7 @@
 // Overview tab — the migrated original dashboard: today's rings, trend charts,
-// and the correlation insight cards. Still uses the original MetricRing /
-// TrendChart / ComparisonCard; Phase 2 swaps TrendChart for an interactive
-// Recharts version and Phase 3 moves the game-correlation cards to the Games tab.
+// and the correlation insight cards. Uses MetricRing + the interactive Recharts
+// LineTrend + ComparisonCard. Phase 3 moves the game-correlation cards to the
+// Games tab.
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -19,12 +19,12 @@ import type {
   WindDownImpact,
 } from '../api/types'
 import { MetricRing } from '../components/MetricRing'
-import { TrendChart } from '../components/TrendChart'
+import { LineTrend } from '../components/charts/LineTrend'
 import { ComparisonCard } from '../components/ComparisonCard'
 import { Card } from '../components/ui/Card'
 import { PageHeader, Section } from '../components/ui/Section'
 import { FreshnessAction } from '../components/FreshnessAction'
-import { formatDuration, relativeDay } from '../lib/format'
+import { formatDuration, monthDay, relativeDay } from '../lib/format'
 import { metricColors } from '../lib/colors'
 
 // A row can exist but be empty — asked before that night's sleep reached Google.
@@ -120,18 +120,21 @@ export function Dashboard() {
 
       <Section title="Trends">
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <Card>
-            <TrendChart
-              title="Sleep score (30d)"
+          <Card title="Sleep score (30d)">
+            <LineTrend
               color={metricColors.sleep}
               points={history.map((s) => ({ label: s.date, value: s.sleep_score }))}
+              labelFormatter={(v) => monthDay(String(v))}
+              valueFormatter={(v) => Math.round(v)}
             />
           </Card>
-          <Card>
-            <TrendChart
-              title="Resting HR (30d)"
+          <Card title="Resting HR (30d)">
+            <LineTrend
               color={metricColors.hr}
+              unit="bpm"
               points={history.map((s) => ({ label: s.date, value: s.resting_heart_rate }))}
+              labelFormatter={(v) => monthDay(String(v))}
+              valueFormatter={(v) => Math.round(v)}
             />
           </Card>
         </div>
