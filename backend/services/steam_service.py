@@ -10,19 +10,31 @@ from models.game_session import GameSession
 from models.game_cache import GameCache
 
 
+def _get_json(url: str) -> dict:
+    """GET a keyed Steam URL, redacting the API key from any failure message.
+
+    The key rides in the URL query string, and requests embeds the full URL in
+    its exceptions — so a raw error would leak the secret into the logs (the
+    poller's warning, or a controller's 500 traceback). Re-raise with the key
+    scrubbed; `from None` drops the original key-bearing message.
+    """
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        raise requests.RequestException(settings.redact_secrets(str(e))) from None
+
+
 def get_currently_playing() -> dict:
     """Fetch the user's current player summary from Steam. Returns the raw player dict."""
-    response = requests.get(settings.STEAM_GET_PLAYER_SUMMARIES_URL)
-    response.raise_for_status()
-    players = response.json()["response"]["players"]
+    players = _get_json(settings.STEAM_GET_PLAYER_SUMMARIES_URL)["response"]["players"]
     return players[0] if players else {}
 
 
 def get_recently_played() -> dict:
     """Fetch the user's recently played games from Steam."""
-    response = requests.get(settings.STEAM_GET_RECENTLY_PLAYED_GAMES_URL)
-    response.raise_for_status()
-    return response.json()["response"]
+    return _get_json(settings.STEAM_GET_RECENTLY_PLAYED_GAMES_URL)["response"]
 
 
 def get_game_metadata(app_id: int, db: Session) -> GameCache | None:
