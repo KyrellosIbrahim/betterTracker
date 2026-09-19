@@ -18,6 +18,9 @@ import type {
   SleepImpactCompetitive,
   SleepResponse,
   WindDownImpact,
+  PlaytimeImpact,
+  ActivityInteraction,
+  WeeklyPlaytimePoint,
 } from './types'
 
 const BASE_URL = 'http://localhost:8000'
@@ -27,6 +30,16 @@ export const GOOGLE_LOGIN_URL = `${BASE_URL}/auth/google/login`
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`)
+  if (!response.ok) throw new Error(`${path} failed: ${response.status}`)
+  return response.json()
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
   if (!response.ok) throw new Error(`${path} failed: ${response.status}`)
   return response.json()
 }
@@ -69,6 +82,15 @@ export const getRecentlyPlayed = () =>
 
 export const getGames = () => get<GameDetails[]>('/steam/games')
 
+// Add or update a game's metadata (genre + competitive flag). The backend also
+// backfills existing sessions of this game, so insights update retroactively.
+export const upsertGame = (game: {
+  app_id: number
+  game_name: string
+  genre?: string | null
+  is_competitive: boolean
+}) => post<GameDetails>('/steam/games', game)
+
 // --- Sessions ---
 
 export const getSessions = (date?: string, limit = 50) =>
@@ -94,3 +116,13 @@ export const getLateNightImpact = () => get<LateNightImpact>('/insights/late-nig
 
 export const getSleepImpactCompetitive = () =>
   get<SleepImpactCompetitive>('/insights/sleep-impact-competitive')
+
+// Recovery bucketed by how much was played that day (<1h / 1–3h / 3h+).
+export const getPlaytimeImpact = () => get<PlaytimeImpact>('/insights/playtime')
+
+// Recovery on gaming days that were also physically active vs sedentary vs none.
+export const getActivityInteraction = () =>
+  get<ActivityInteraction>('/insights/activity-interaction')
+
+// Per-week total gaming minutes vs average next-morning sleep score.
+export const getWeeklyPlaytime = () => get<WeeklyPlaytimePoint[]>('/insights/weekly')

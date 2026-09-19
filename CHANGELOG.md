@@ -40,6 +40,31 @@ them**; if you still want to change one, update this list in the same commit.
 ## 2026-09-19
 
 ### Added
+- **Games tab overhaul.** Rebuilt in the app's own design language (KPI `Stat`
+  row + Recharts) and given real depth:
+  - A **competitive tagging UI** ("Manage games"): a per-game checkbox that
+    writes to the cache via `POST /steam/games`. Tagging now **backfills the
+    game's existing sessions** (`upsert_game` rewrites `GameSession.is_competitive`/
+    `genre`), so the gaming-vs-recovery comparisons update retroactively — the
+    insights group by the session's stored flag, so without the backfill a fresh
+    tag would have no effect on history.
+  - New insights + routes: `/insights/playtime` (recovery by that day's total
+    playtime, `<1h`/`1–3h`/`3h+`), `/insights/activity-interaction` (recovery on
+    gaming days that were also physically active vs sedentary vs no-gaming; a
+    gaming day D's activity is snapshot D's `active_minutes`, its recovery is
+    D+1; unknown-activity days are excluded, not guessed), and `/insights/weekly`
+    (weekly total playtime vs average next-morning sleep score).
+  - Every bucket insight now also returns `avg_deep_minutes`, `avg_rem_minutes`,
+    `avg_breathing_rate`, and `avg_spo2`, surfaced through a metric segmented
+    control on the comparison cards (Sleep score · Deep · REM · Resting HR ·
+    Breathing · SpO₂) — no new endpoint per metric.
+  - New config `ACTIVE_MINUTES_THRESHOLD` (default 30) defines an "active"
+    gaming day. New frontend components: `charts/CategoryBars` (categorical
+    comparison bars that dim sub-`MIN_SAMPLE_DAYS` buckets and show the day
+    count + spread — the `ComparisonCard` guardrails, carried over),
+    `charts/PlaytimeVsSleep` (composed bars+line), `ui/SegmentedControl`, and a
+    `post()` helper + `upsertGame()` in the API client. Guarded by
+    `tests/test_gaming_insights.py`.
 - **Frontend app shell (Phase 1 of the Lumida-style dashboard).** The single
   centered `App.tsx` is now a routed multi-page app: a persistent sidebar
   (Overview → Dashboard; Tracking → Activity, Sleep, Recovery, Health, Weight,

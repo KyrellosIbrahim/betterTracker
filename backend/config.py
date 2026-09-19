@@ -80,6 +80,10 @@ class Settings:
     # A gaming session that ends after this hour counts as "late night"
     LATE_NIGHT_HOUR: int = int(os.environ.get("LATE_NIGHT_HOUR", "23"))
 
+    # A gaming day with at least this many active minutes counts as "physically
+    # active" for the gaming-vs-recovery activity-interaction insight.
+    ACTIVE_MINUTES_THRESHOLD: int = int(os.environ.get("ACTIVE_MINUTES_THRESHOLD", "30"))
+
     # Log verbosity for application logs (DEBUG/INFO/WARNING/ERROR).
     LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()
 

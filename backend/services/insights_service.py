@@ -42,6 +42,14 @@ WIND_DOWN_BUCKETS = (
     ("over_90min", 90, MAX_WIND_DOWN_GAP_MINUTES + 1),
 )
 
+# (name, low, high) in minutes — a gaming day's total playtime. `high` on the
+# last bucket is generous; a day's summed sessions won't exceed 24h anyway.
+PLAYTIME_BUCKETS = (
+    ("under_1h", 0, 60),
+    ("1_to_3h", 60, 180),
+    ("over_3h", 180, 24 * 60),
+)
+
 
 def gaming_day(start_time: datetime) -> date:
     """The logical gaming day a session belongs to (see rule 1 above)."""
@@ -69,7 +77,11 @@ def _spread(values: list) -> tuple[float | None, float | None]:
 
 
 def _bucket_stats(snaps: list[HealthSnapshot]) -> dict:
-    """Shared metric block for a bucket of recovery mornings."""
+    """
+    Shared metric block for a bucket of recovery mornings. Every bucket-based
+    insight returns this same set, so the frontend can switch which metric it
+    charts without needing a different endpoint per metric.
+    """
     scores = [s.sleep_score for s in snaps]
     score_min, score_max = _spread(scores)
     return {
@@ -77,9 +89,28 @@ def _bucket_stats(snaps: list[HealthSnapshot]) -> dict:
         "sleep_score_min": score_min,
         "sleep_score_max": score_max,
         "avg_sleep_duration_minutes": _average([s.sleep_duration_minutes for s in snaps]),
+        "avg_deep_minutes": _average([s.deep_minutes for s in snaps]),
+        "avg_rem_minutes": _average([s.rem_minutes for s in snaps]),
         "avg_resting_hr": _average([s.resting_heart_rate for s in snaps]),
+        "avg_breathing_rate": _average([s.breathing_rate for s in snaps]),
+        "avg_spo2": _average([s.spo2 for s in snaps]),
         "sample_days": len(snaps),
     }
+
+
+def _total_minutes_by_day(sessions: list[GameSession]) -> dict[date, float]:
+    """
+    Total plausible playtime per gaming day. Skips still-open sessions and the
+    implausibly long ones that are really polling artifacts (see
+    MAX_PLAUSIBLE_SESSION_MINUTES), so a wifi-drop doesn't inflate a day.
+    """
+    totals: dict[date, float] = {}
+    for session in sessions:
+        if session.duration_minutes is None or session.duration_minutes > MAX_PLAUSIBLE_SESSION_MINUTES:
+            continue
+        day = gaming_day(session.start_time)
+        totals[day] = totals.get(day, 0.0) + session.duration_minutes
+    return totals
 
 
 def _last_session_end_by_day(sessions: list[GameSession]) -> dict[date, datetime]:
@@ -290,3 +321,94 @@ def get_late_night_impact(db: Session) -> dict:
         buckets["late_night_gaming" if end_time >= cutoff else "earlier_gaming"].append(snapshot)
 
     return {name: _bucket_stats(snaps) for name, snaps in buckets.items()}
+
+
+def get_playtime_impact(db: Session) -> dict:
+    """
+    Next-morning recovery bucketed by how much was played that gaming day.
+    Answers: "does a longer night cost more recovery?"
+    """
+    sessions, snapshots = _load(db)
+    totals = _total_minutes_by_day(sessions)
+
+    buckets: dict[str, list[tuple[HealthSnapshot, float]]] = {name: [] for name, _, _ in PLAYTIME_BUCKETS}
+    for day, minutes in totals.items():
+        snapshot = snapshots.get(recovery_date(day))
+        if snapshot is None:
+            continue
+        for name, low, high in PLAYTIME_BUCKETS:
+            if low <= minutes < high:
+                buckets[name].append((snapshot, minutes))
+                break
+
+    return {
+        name: {
+            "avg_playtime_minutes": _average([minutes for _, minutes in rows]),
+            **_bucket_stats([snap for snap, _ in rows]),
+        }
+        for name, rows in buckets.items()
+    }
+
+
+def get_activity_interaction(db: Session) -> dict:
+    """
+    Next-morning recovery split by whether a gaming day was also physically
+    active. Answers: "does staying active offset the gaming hit?"
+
+    A gaming day D's own activity lives on snapshot D (active_minutes for that
+    calendar day); its recovery sleep is snapshot D+1. Gaming days whose activity
+    we don't know (no snapshot / no active_minutes) are left out of the
+    active/sedentary split rather than guessed — only the no-gaming bucket and
+    the two known-activity buckets are honest.
+    """
+    sessions, snapshots = _load(db)
+    gaming_days = {gaming_day(s.start_time) for s in sessions}
+    threshold = settings.ACTIVE_MINUTES_THRESHOLD
+
+    buckets: dict[str, list[HealthSnapshot]] = {
+        "no_gaming": [],
+        "gaming_active": [],
+        "gaming_sedentary": [],
+    }
+    for snapshot in snapshots.values():
+        day = snapshot.date - timedelta(days=1)  # gaming day whose sleep this snapshot holds
+        if day not in gaming_days:
+            buckets["no_gaming"].append(snapshot)
+            continue
+
+        day_snapshot = snapshots.get(day)
+        active_minutes = day_snapshot.active_minutes if day_snapshot else None
+        if active_minutes is None:
+            continue  # unknown activity — don't force it into a bucket
+        buckets["gaming_active" if active_minutes >= threshold else "gaming_sedentary"].append(snapshot)
+
+    return {name: _bucket_stats(snaps) for name, snaps in buckets.items()}
+
+
+def get_weekly_playtime_vs_sleep(db: Session) -> list[dict]:
+    """
+    Per-week total gaming minutes vs average next-morning sleep score, oldest
+    first. Each week groups gaming days by their Monday; the sleep score is
+    averaged over those gaming days' recovery nights, so playtime and the sleep
+    it plausibly affected sit in the same bucket.
+    """
+    sessions, snapshots = _load(db)
+    totals = _total_minutes_by_day(sessions)
+
+    weeks: dict[date, dict] = {}
+    for day, minutes in totals.items():
+        week_start = day - timedelta(days=day.weekday())
+        week = weeks.setdefault(week_start, {"minutes": 0.0, "scores": []})
+        week["minutes"] += minutes
+        snapshot = snapshots.get(recovery_date(day))
+        if snapshot is not None and snapshot.sleep_score is not None:
+            week["scores"].append(snapshot.sleep_score)
+
+    return [
+        {
+            "week_start": week_start.isoformat(),
+            "total_minutes": round(week["minutes"]),
+            "avg_sleep_score": _average(week["scores"]),
+        }
+        for week_start, week in sorted(weeks.items())
+    ]
