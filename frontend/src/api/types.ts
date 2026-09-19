@@ -54,6 +54,10 @@ export interface HealthSnapshot {
   rem_minutes: number | null
   awake_minutes: number | null
   breathing_rate: number | null
+  // Naive local datetimes (UTC converted to local before storage). The sleep
+  // window that produced the stage minutes above.
+  sleep_start: string | null
+  sleep_end: string | null
 }
 
 // --- Steam (backend/schemas/steam.py) ---

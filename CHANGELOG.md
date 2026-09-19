@@ -60,16 +60,37 @@ them**; if you still want to change one, update this list in the same commit.
   colors live in `charts/chartTheme.ts`, mirroring the `index.css` tokens (same
   reason as `lib/colors.ts`: Recharts sets SVG attributes, where `var(--token)`
   won't resolve).
+- **Data-backed tabs (Phase 3).** Built the four tabs that have data:
+  - **Sleep** — per-night breakdown (score + time-asleep rings, sleep window,
+    and a proportional stage-composition bar via `StageBar`) with a night
+    picker, plus duration/score `LineTrend`s and a 14-night stacked
+    `StageTrend`. Honesty note: the stage view is proportional, **not** a
+    time-ordered hypnogram — Google stores per-stage totals, not the segment
+    timeline, so a real hypnogram is future backend work.
+  - **Recovery** — resting-HR and breathing-rate KPIs (latest + 7-day avg) and
+    trends.
+  - **Health** — cross-metric KPI grid, all four trends, and a Google Health
+    connection/source card.
+  - **Games** — currently-playing banner, a sessions timeline, recently-played
+    (proportional bars), and the gaming↔recovery correlation cards.
+- Helpers: `lib/stats` (`mean`, `latestOf`), `lib/format` (`clockTime`,
+  `formatHm`, `monthDay`), `stageColors`; `LineTrend` gained a `yAllowDecimals`
+  option (off for hour-based axes).
 
 ### Changed
 - The original dashboard (rings, trends, gaming-vs-recovery insight cards) moved
-  verbatim into the **Dashboard** route, reusing `MetricRing` and
-  `ComparisonCard` unchanged. Trend charts now use the interactive `LineTrend`.
-  Tabs without data yet (Sleep/Recovery/Health/Games pending Phase 3;
-  Activity/Weight pending the Phase 4 backend expansion) render a "coming soon"
-  stub.
+  into the **Dashboard** route, reusing `MetricRing` and `ComparisonCard`. Trend
+  charts now use the interactive `LineTrend`. Activity/Weight (pending the Phase
+  4 backend expansion) still render a "coming soon" stub.
+- The full set of gaming↔recovery correlation cards (wind-down, late-night, plus
+  competitive-vs-casual) moved from the Dashboard to the **Games** tab; the
+  Dashboard keeps one teaser card that links to Games.
+- Frontend `HealthSnapshot` type gained `sleep_start` / `sleep_end` — the
+  backend `HealthSnapshotResponse` already returned them, but `types.ts` had
+  drifted and omitted them (needed for the sleep window).
 - Breathing-rate ring ceiling raised 20 → 30 /min so a normal night no longer
   fills the ring completely.
+
 ### Fixed
 - **Steam API key leaked into logs on request failure.** The key rides in the
   URL query string (`?key=...` — Steam has no header auth), and `requests`
