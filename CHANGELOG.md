@@ -40,6 +40,21 @@ them**; if you still want to change one, update this list in the same commit.
 ## 2026-09-19
 
 ### Added
+- **launchd session-capture agent (macOS).** A per-user LaunchAgent keeps the
+  backend (and its Steam poller) running at login and restarts it on crash, so
+  session capture no longer depends on a terminal being open — the highest-value
+  reliability item, since Steam sessions can't be backfilled. Files under
+  `scripts/launchd/`: `run_capture.sh` (the `ExecStart` — resolves the backend
+  dir relative to itself, runs `alembic upgrade head` non-fatally, then execs
+  `uvicorn main:app --host 127.0.0.1 --port 8000`, single worker so the poller
+  isn't duplicated), a plist template (`RunAtLoad` + `KeepAlive` +
+  `ProcessType Standard`, logging to `~/Library/Logs/bettertracker/`), and
+  install/uninstall scripts. New `make` targets (`agent-install`,
+  `agent-uninstall`, `agent-status`, `agent-logs`, `agent-restart`,
+  `agent-stop`, `agent-start`). Writing logs to disk is safe because the Steam
+  key is already redacted before logging. The agent owns port 8000, so
+  `make agent-stop` before `make run` during development. See
+  `scripts/launchd/README.md`.
 - **Games tab overhaul.** Rebuilt in the app's own design language (KPI `Stat`
   row + Recharts) and given real depth:
   - A **competitive tagging UI** ("Manage games"): a per-game checkbox that
