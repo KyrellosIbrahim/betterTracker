@@ -83,11 +83,25 @@ export function Dashboard() {
             display={sleepMinutes != null ? formatDuration(sleepMinutes) : undefined}
             color={metricColors.duration}
           />
-          <MetricRing label="Resting HR" value={latest?.resting_heart_rate} max={100} unit=" bpm" color={metricColors.hr} />
+          {/* Resting HR & breathing are lower-is-better, so the ring is inverted
+              (a lower value reads fuller). Anchors are display-only healthy-adult
+              bounds: full at the best end, empty at the worst — they don't touch
+              stored data or the sleep score. */}
+          <MetricRing
+            label="Resting HR"
+            value={latest?.resting_heart_rate}
+            min={50 /* full */}
+            max={90 /* empty */}
+            invert
+            unit=" bpm"
+            color={metricColors.hr}
+          />
           <MetricRing
             label="Breathing"
             value={latest?.breathing_rate ?? null}
-            max={30 /* typical resting range tops out ~20/min; headroom so a normal night isn't a full ring */}
+            min={12 /* full */}
+            max={22 /* empty */}
+            invert
             unit=" /min"
             color={metricColors.breathing}
           />
