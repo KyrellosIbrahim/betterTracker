@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent template for the BetterTracker backend (Steam session capture).
+  Placeholders (__RUN_SCRIPT__, __BACKEND_DIR__, __LOG_DIR__) are filled in by
+  install-agent.sh and written to ~/Library/LaunchAgents/. Do not edit the
+  installed copy by hand — re-run the installer instead.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.bettertracker.backend</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__RUN_SCRIPT__</string>
+    </array>
+
+    <!-- So load_dotenv() finds backend/.env and sqlite:///./bettertracker.db
+         resolves to the real DB. -->
+    <key>WorkingDirectory</key>
+    <string>__BACKEND_DIR__</string>
+
+    <!-- Start at login and keep it running; restart on any exit. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <!-- Don't hammer on a crash loop. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- Standard (not Background) so App Nap doesn't throttle the 30s poller.
+         Switch to Interactive if throttling is ever observed. -->
+    <key>ProcessType</key>
+    <string>Standard</string>
+
+    <!-- Logs are safe to write: the Steam key is redacted before logging. -->
+    <key>StandardOutPath</key>
+    <string>__LOG_DIR__/backend.log</string>
+    <key>StandardErrorPath</key>
+    <string>__LOG_DIR__/backend.err.log</string>
+</dict>
+</plist>
