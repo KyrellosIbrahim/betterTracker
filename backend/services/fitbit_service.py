@@ -184,8 +184,12 @@ def _build_date_range(target_date: date) -> dict:
 DATA_TYPE_FILTERS = {
     "daily-resting-heart-rate": ("daily_resting_heart_rate", "date", "date"),
     "daily-respiratory-rate": ("daily_respiratory_rate", "date", "date"),
+    "daily-oxygen-saturation": ("daily_oxygen_saturation", "date", "date"),
     "sleep": ("sleep", "interval.end_time", "timestamp"),
     "exercise": ("exercise", "interval.civil_start_time", "date"),
+    # Weight is an instantaneous sample, so it filters on the sample's physical
+    # (wall-clock UTC) time, not a daily `date` field — verified against the API.
+    "weight": ("weight", "sample_time.physical_time", "timestamp"),
 }
 
 
@@ -240,6 +244,90 @@ def fetch_exercise(target_date: date) -> dict:
     return _fetch_data("exercise", target_date, action="list")
 
 
+def fetch_steps(target_date: date) -> dict:
+    """Fetch the day's step total. Steps are an interval type, so we roll them up."""
+    return _fetch_data("steps", target_date, action="dailyRollUp")
+
+
+def fetch_active_minutes(target_date: date) -> dict:
+    """Fetch the day's active-minutes rollup (broken down by activity level)."""
+    return _fetch_data("active-minutes", target_date, action="dailyRollUp")
+
+
+def fetch_oxygen_saturation(target_date: date) -> dict:
+    """Fetch the day's SpO2 daily summary."""
+    return _fetch_data("daily-oxygen-saturation", target_date, action="list")
+
+
+def fetch_weight(target_date: date) -> dict:
+    """Fetch weight sample(s) recorded on a specific day."""
+    return _fetch_data("weight", target_date, action="list")
+
+
+# --- Parsers for the Phase 4 activity/body metrics. Kept separate from the
+# fetchers so tests can lock in the exact API field names (verified live). Every
+# numeric field Google serializes as a string is coerced here. ---
+
+def _parse_steps(resp: dict) -> int | None:
+    """Daily step total from a `steps` dailyRollUp. countSum is a JSON string."""
+    points = resp.get("rollupDataPoints") or []
+    if not points:
+        return None
+    count = points[0].get("steps", {}).get("countSum")
+    return int(count) if count is not None else None
+
+
+def _parse_active_minutes(resp: dict) -> int | None:
+    """Total active minutes across all activity levels (each sum is a string)."""
+    points = resp.get("rollupDataPoints") or []
+    if not points:
+        return None
+    levels = points[0].get("activeMinutes", {}).get("activeMinutesRollupByActivityLevel") or []
+    if not levels:
+        return None
+    return sum(int(level["activeMinutesSum"]) for level in levels if level.get("activeMinutesSum") is not None)
+
+
+def _parse_spo2(resp: dict) -> float | None:
+    """Day's average blood-oxygen % from a daily-oxygen-saturation summary."""
+    points = resp.get("dataPoints") or []
+    if not points:
+        return None
+    pct = points[0].get("dailyOxygenSaturation", {}).get("averagePercentage")
+    return float(pct) if pct is not None else None
+
+
+def _parse_weight(resp: dict) -> float | None:
+    """The day's latest weight reading in kg (API reports integer grams)."""
+    readings = []
+    for point in resp.get("dataPoints") or []:
+        weight = point.get("weight", {})
+        grams = weight.get("weightGrams")
+        if grams is not None:
+            when = weight.get("sampleTime", {}).get("physicalTime") or ""
+            readings.append((when, float(grams) / 1000.0))
+    if not readings:
+        return None
+    # RFC-3339 UTC timestamps sort lexicographically, so this is the latest.
+    readings.sort(key=lambda r: r[0])
+    return round(readings[-1][1], 2)
+
+
+def _try_metric(label: str, fetch, parse, target_date: date):
+    """
+    Fetch + parse one metric, swallowing failures to None.
+
+    The activity/body metrics are newer and each hits a different endpoint; a
+    single flaky one must not abort the whole snapshot, which also carries the
+    critical sleep/HR data. Errors are logged, not raised.
+    """
+    try:
+        return parse(fetch(target_date))
+    except Exception as e:
+        logger.warning("Fetching %s for %s failed: %s", label, target_date, e)
+        return None
+
+
 def build_snapshot_data(target_date: date) -> dict:
     """
     Fetch every health metric for a day and map it to HealthSnapshot column values.
@@ -268,6 +356,10 @@ def build_snapshot_data(target_date: date) -> dict:
         "breathing_rate": float(breathing_rate) if breathing_rate is not None else None,
         "sleep_start": metrics.get("sleep_start"),
         "sleep_end": metrics.get("sleep_end"),
+        "steps": _try_metric("steps", fetch_steps, _parse_steps, target_date),
+        "active_minutes": _try_metric("active minutes", fetch_active_minutes, _parse_active_minutes, target_date),
+        "spo2": _try_metric("SpO2", fetch_oxygen_saturation, _parse_spo2, target_date),
+        "weight_kg": _try_metric("weight", fetch_weight, _parse_weight, target_date),
     }
 
 

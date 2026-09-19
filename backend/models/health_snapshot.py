@@ -20,6 +20,13 @@ class HealthSnapshot(Base):
     rem_minutes = Column(Integer, nullable=True)
     awake_minutes = Column(Integer, nullable=True)
     breathing_rate = Column(Float, nullable=True)
+    # Activity / body metrics (added Phase 4). All nullable — a day may have any
+    # subset depending on which devices reported. steps/active_minutes come from
+    # dailyRollUp totals; spo2 is the day's average %, weight the day's reading.
+    steps = Column(Integer, nullable=True)
+    active_minutes = Column(Integer, nullable=True)
+    spo2 = Column(Float, nullable=True)
+    weight_kg = Column(Float, nullable=True)
     # When this row was last pulled from Google. Staleness is per-day: today's
     # row goes stale hourly, a row from June never needs refetching again.
     synced_at = Column(DateTime, nullable=True)

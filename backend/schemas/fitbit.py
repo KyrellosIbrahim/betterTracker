@@ -56,6 +56,11 @@ class HealthSnapshotResponse(BaseModel):
     breathing_rate: Optional[float] = None
     sleep_start: Optional[datetime] = None
     sleep_end: Optional[datetime] = None
+    # Activity / body metrics (Phase 4). None where the day had no such data.
+    steps: Optional[int] = None
+    active_minutes: Optional[int] = None
+    spo2: Optional[float] = None
+    weight_kg: Optional[float] = None
     # When this row was last pulled from Google — lets the client tell "current"
     # from "stale but cached".
     synced_at: Optional[datetime] = None

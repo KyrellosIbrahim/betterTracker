@@ -76,6 +76,26 @@ them**; if you still want to change one, update this list in the same commit.
 - Helpers: `lib/stats` (`mean`, `latestOf`), `lib/format` (`clockTime`,
   `formatHm`, `monthDay`), `stageColors`; `LineTrend` gained a `yAllowDecimals`
   option (off for hour-based axes).
+- **Activity/weight/SpO₂ metrics (Phase 4 — backend expansion).** The daily
+  snapshot now also pulls **steps**, **active minutes**, **blood-oxygen (SpO₂)**,
+  and **body weight** from Google Health. New nullable columns on
+  `health_snapshots` (`steps`, `active_minutes`, `spo2`, `weight_kg`), exposed on
+  `HealthSnapshotResponse` and mirrored in `types.ts`. The exact API field names
+  were verified against the live API and are locked in by `test_activity_metrics.py`:
+  - `steps` → `steps` dailyRollUp, `rollupDataPoints[].steps.countSum` (JSON **string**, coerced).
+  - `active_minutes` → `active-minutes` dailyRollUp, summed across
+    `activeMinutes.activeMinutesRollupByActivityLevel[].activeMinutesSum` (strings).
+  - `spo2` → `daily-oxygen-saturation` list, `dailyOxygenSaturation.averagePercentage`.
+  - `weight_kg` → `weight` list filtered on `weight.sample_time.physical_time`
+    (a *sample* type, so it filters on physical time, not a `date`), value from
+    `weight.weightGrams` ÷ 1000, taking the day's latest reading.
+  Each new metric is fetched behind `_try_metric`, which swallows a single
+  endpoint's failure to `None` so it can't abort the whole snapshot (which also
+  carries the critical sleep/HR data).
+- **Activity** and **Weight** tabs now render real data (weekly step bars, step
+  trend, active-minutes trend; weight KPIs + trend). **SpO₂** added to the
+  Recovery and Health tabs. `LineTrend`/`BarWeek` gained a `yTickFormatter`
+  (compact "4k" for step axes).
 
 ### Changed
 - The original dashboard (rings, trends, gaming-vs-recovery insight cards) moved
@@ -107,6 +127,16 @@ them**; if you still want to change one, update this list in the same commit.
 ### Removed
 - Hand-rolled `components/TrendChart.tsx` (no axes/tooltips), replaced by the
   Recharts-based `charts/LineTrend`.
+
+### Migrations
+- `c7f3a9d21b84` — add `steps`, `active_minutes`, `spo2`, `weight_kg` to
+  `health_snapshots` (all nullable). **Run `make migrate`** before starting the
+  server after pulling. Existing rows keep NULL for these columns; only days
+  refetched within `HEALTH_SYNC_WINDOW_DAYS` populate them going forward, so to
+  fill history run the backfill with `--force`, e.g.
+  `venv/bin/python backfill_health.py --start 2026-06-12 --force`
+  (it already routes through `build_snapshot_data`, so it picks up the new
+  metrics automatically).
 
 ---
 

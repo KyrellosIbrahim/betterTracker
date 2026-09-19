@@ -61,3 +61,11 @@ export function formatHm(minutes: number): string {
   const total = Math.round(minutes)
   return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, '0')}`
 }
+
+// Compact large numbers for axis ticks: 4682 -> "4.7k", 8000 -> "8k". Keeps
+// step-count axes narrow enough not to clip against the chart's left margin.
+export function compactNum(v: number): string {
+  if (Math.abs(v) < 1000) return String(v)
+  const k = v / 1000
+  return `${Number.isInteger(k) ? k : k.toFixed(1)}k`
+}

@@ -12,6 +12,7 @@ export const metricColors = {
   breathing: '#4ade80',
   steps: '#f5a623',
   weight: '#38bdf8',
+  spo2: '#2dd4bf',
 } as const
 
 export type MetricKey = keyof typeof metricColors

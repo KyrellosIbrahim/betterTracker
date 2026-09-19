@@ -48,6 +48,7 @@ export function Recovery() {
   const restingAvg = mean(last7.map((s) => s.resting_heart_rate))
   const breathingLatest = latestOf(history, (s) => s.breathing_rate)
   const breathingAvg = mean(last7.map((s) => s.breathing_rate))
+  const spo2Latest = latestOf(history, (s) => s.spo2)
 
   const round = (v: number | null, d = 0) => (v == null ? null : Number(v.toFixed(d)))
 
@@ -56,11 +57,12 @@ export function Recovery() {
       <PageHeader title="Recovery" subtitle="Resting heart rate and breathing rate" />
 
       <Card>
-        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5">
           <Stat label="Resting HR" value={restingLatest ?? '–'} unit="bpm" color={metricColors.hr} />
           <Stat label="7-day avg HR" value={round(restingAvg) ?? '–'} unit="bpm" />
           <Stat label="Breathing" value={round(breathingLatest, 1) ?? '–'} unit="/min" color={metricColors.breathing} />
           <Stat label="7-day avg breathing" value={round(breathingAvg, 1) ?? '–'} unit="/min" />
+          <Stat label="SpO₂" value={round(spo2Latest, 1) ?? '–'} unit="%" color={metricColors.spo2} />
         </div>
       </Card>
 
@@ -80,6 +82,15 @@ export function Recovery() {
               color={metricColors.breathing}
               unit="/min"
               points={history.map((s) => ({ label: s.date, value: s.breathing_rate }))}
+              labelFormatter={(v) => monthDay(String(v))}
+              valueFormatter={(v) => v.toFixed(1)}
+            />
+          </Card>
+          <Card title="Blood oxygen (30d)">
+            <LineTrend
+              color={metricColors.spo2}
+              unit="%"
+              points={history.map((s) => ({ label: s.date, value: s.spo2 }))}
               labelFormatter={(v) => monthDay(String(v))}
               valueFormatter={(v) => v.toFixed(1)}
             />
