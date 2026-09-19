@@ -63,6 +63,18 @@ them**; if you still want to change one, update this list in the same commit.
   a "coming soon" stub.
 - Breathing-rate ring ceiling raised 20 → 30 /min so a normal night no longer
   fills the ring completely.
+### Fixed
+- **Steam API key leaked into logs on request failure.** The key rides in the
+  URL query string (`?key=...` — Steam has no header auth), and `requests`
+  embeds the full failing URL in its exception message. That message reached
+  the logs verbatim via the poller's `logger.warning("Steam polling failed: %s", e)`
+  and via any `/steam/*` 500 traceback. Steam requests now go through
+  `steam_service._get_json()`, which catches `requests.RequestException` and
+  re-raises with the key scrubbed to `***REDACTED***` (`settings.redact_secrets`,
+  the single source of truth for what counts as a secret). This is a
+  prerequisite for running under launchd, which captures stdout/stderr to files.
+  The key was **not** rotated — the project isn't exposed yet. Guarded by
+  `tests/test_steam_service.py`.
 
 ---
 

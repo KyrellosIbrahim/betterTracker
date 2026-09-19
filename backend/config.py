@@ -46,6 +46,18 @@ class Settings:
     def STEAM_GET_GAME_DETAILS_URL(app_id: int) -> str:
         return f"https://store.steampowered.com/api/appdetails?appids={app_id}"
 
+    def redact_secrets(self, text: str) -> str:
+        """Mask the Steam API key wherever it appears in a string.
+
+        The key is passed as a URL query param (Steam has no header auth), so
+        `requests` exceptions embed it in the failing URL. Scrub it before any
+        such message reaches the logs. Single source of truth for what counts
+        as a secret — extend here if more keyed URLs are added.
+        """
+        if self.STEAM_API_KEY:
+            text = text.replace(self.STEAM_API_KEY, "***REDACTED***")
+        return text
+
     # Database
     DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite:///./bettertracker.db")
 
