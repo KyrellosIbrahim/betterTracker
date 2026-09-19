@@ -1,11 +1,18 @@
-// Apple-Watch-style progress ring. Pass value/max and it fills proportionally.
+// Apple-Watch-style progress ring. Fills proportionally across [min, max].
+// "Fuller = better" is the convention: for lower-is-better metrics (resting HR,
+// breathing) pass `invert` so a lower value fills more.
 // Example: <MetricRing label="Sleep" value={84} max={100} color="#7c5cff" />
+//          <MetricRing label="Resting HR" value={64} min={50} max={90} invert />
 
 interface MetricRingProps {
   label: string
   /** Drives how far the ring fills. Always numeric, even when `display` overrides the text. */
   value: number | null | undefined
   max: number
+  /** Low end of the fill range (default 0). */
+  min?: number
+  /** Flip the fill so a LOWER value reads fuller — for lower-is-better metrics. */
+  invert?: boolean
   unit?: string
   /** Overrides the centre text, e.g. "6:24" for a duration held as 384 minutes. */
   display?: string
@@ -17,6 +24,8 @@ export function MetricRing({
   label,
   value,
   max,
+  min = 0,
+  invert = false,
   unit = '',
   display,
   color = '#7c5cff',
@@ -25,7 +34,11 @@ export function MetricRing({
   const stroke = size * 0.09
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
-  const fraction = value == null ? 0 : Math.min(Math.max(value / max, 0), 1)
+  // Clamp the raw ratio before inverting, so a value past either anchor
+  // saturates correctly (better-than-best → full, worse-than-worst → empty).
+  // A missing value is always empty — never let `invert` turn null into a full ring.
+  const ratio = Math.min(Math.max(((value ?? min) - min) / (max - min || 1), 0), 1)
+  const fraction = value == null ? 0 : invert ? 1 - ratio : ratio
 
   return (
     <div className="flex flex-col items-center gap-1">

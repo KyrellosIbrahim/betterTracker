@@ -110,6 +110,14 @@ them**; if you still want to change one, update this list in the same commit.
   drifted and omitted them (needed for the sleep window).
 - Breathing-rate ring ceiling raised 20 → 30 /min so a normal night no longer
   fills the ring completely.
+- **Resting HR and Breathing rings are now inverted** (lower value = fuller
+  ring), so "fuller = better" now holds for *every* ring on the Dashboard.
+  `MetricRing` gained `min` + `invert` props (defaults keep the old
+  `value/max` behavior, so the sleep-score/duration rings are untouched).
+  Display-only healthy-adult anchors — full at the best end, empty at the
+  worst, not touching stored data or the sleep score: **Resting HR** 50 → 90
+  bpm, **Breathing** 12 → 22 /min (supersedes the 20 → 30 ceiling above). A
+  missing value renders empty, not full.
 
 ### Fixed
 - **Steam API key leaked into logs on request failure.** The key rides in the
