@@ -58,6 +58,11 @@ export interface HealthSnapshot {
   // window that produced the stage minutes above.
   sleep_start: string | null
   sleep_end: string | null
+  // Activity / body metrics (Phase 4). Null where the day had no such data.
+  steps: number | null
+  active_minutes: number | null
+  spo2: number | null
+  weight_kg: number | null
 }
 
 // --- Steam (backend/schemas/steam.py) ---

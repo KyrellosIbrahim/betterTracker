@@ -15,5 +15,7 @@ export const chartChrome = {
 // Shared axis defaults so every chart's ticks read the same.
 export const axisTick = { fill: chartChrome.tick, fontSize: 11 } as const
 
-// Common margins — enough room for tick labels without wasting space.
-export const chartMargin = { top: 8, right: 8, bottom: 0, left: -16 } as const
+// Common margins. Left is 0 (not negative) so multi-character y-axis labels
+// like "81.2" or "7.5" aren't clipped against the SVG edge; the YAxis `width`
+// reserves the label gutter.
+export const chartMargin = { top: 8, right: 8, bottom: 0, left: 0 } as const

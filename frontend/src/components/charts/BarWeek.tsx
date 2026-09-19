@@ -16,6 +16,8 @@ interface BarWeekProps {
   unit?: string
   labelFormatter?: (label: string | number) => ReactNode
   valueFormatter?: (value: number) => ReactNode
+  /** Format y-axis ticks (e.g. compact "4k" for step counts). */
+  yTickFormatter?: (value: number) => string
   emptyMessage?: string
 }
 
@@ -26,6 +28,7 @@ export function BarWeek({
   unit,
   labelFormatter,
   valueFormatter,
+  yTickFormatter,
   emptyMessage = 'No data for this week yet.',
 }: BarWeekProps) {
   const hasAny = points.some((p) => p.value != null)
@@ -49,7 +52,7 @@ export function BarWeek({
           axisLine={{ stroke: chartChrome.grid }}
           tickLine={false}
         />
-        <YAxis tick={axisTick} axisLine={false} tickLine={false} width={36} />
+        <YAxis tick={axisTick} axisLine={false} tickLine={false} width={44} tickFormatter={yTickFormatter} />
         <Tooltip
           cursor={{ fill: chartChrome.cursor }}
           content={<ChartTooltip unit={unit} labelFormatter={labelFormatter} valueFormatter={valueFormatter} />}

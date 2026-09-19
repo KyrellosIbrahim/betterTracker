@@ -32,6 +32,8 @@ interface LineTrendProps {
   valueFormatter?: (value: number) => ReactNode
   /** Allow fractional y-axis ticks. Off for e.g. hours, so 6.75 doesn't appear. */
   yAllowDecimals?: boolean
+  /** Format y-axis ticks (e.g. compact "4k" for step counts). */
+  yTickFormatter?: (value: number) => string
   emptyMessage?: string
 }
 
@@ -43,6 +45,7 @@ export function LineTrend({
   labelFormatter,
   valueFormatter,
   yAllowDecimals = true,
+  yTickFormatter,
   emptyMessage = 'Not enough data yet — check back after a few days of syncing.',
 }: LineTrendProps) {
   const hasEnough = points.filter((p) => p.value != null).length >= 2
@@ -71,9 +74,10 @@ export function LineTrend({
           tick={axisTick}
           axisLine={false}
           tickLine={false}
-          width={36}
+          width={44}
           domain={['auto', 'auto']}
           allowDecimals={yAllowDecimals}
+          tickFormatter={yTickFormatter}
         />
         <Tooltip
           cursor={{ stroke: color, strokeWidth: 1, strokeDasharray: '3 3' }}

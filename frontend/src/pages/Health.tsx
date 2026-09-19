@@ -9,7 +9,7 @@ import { LineTrend } from '../components/charts/LineTrend'
 import { Card, Stat } from '../components/ui/Card'
 import { PageHeader, Section } from '../components/ui/Section'
 import { ComingSoon } from '../components/ui/ComingSoon'
-import { formatDuration, monthDay, relativeDay, relativeTime } from '../lib/format'
+import { compactNum, formatDuration, monthDay, relativeDay, relativeTime } from '../lib/format'
 import { latestOf } from '../lib/stats'
 import { metricColors } from '../lib/colors'
 
@@ -31,6 +31,8 @@ export function Health() {
   const sleepMinutes = latestOf(history, (s) => s.sleep_duration_minutes)
   const restingHr = latestOf(history, (s) => s.resting_heart_rate)
   const breathing = latestOf(history, (s) => s.breathing_rate)
+  const spo2 = latestOf(history, (s) => s.spo2)
+  const steps = latestOf(history, (s) => s.steps)
 
   return (
     <>
@@ -46,7 +48,7 @@ export function Health() {
       ) : (
         <>
           <Card>
-            <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6">
               <Stat label="Sleep score" value={sleepScore ?? '–'} color={metricColors.sleep} />
               <Stat
                 label="Time asleep"
@@ -60,6 +62,8 @@ export function Health() {
                 unit="/min"
                 color={metricColors.breathing}
               />
+              <Stat label="SpO₂" value={spo2 != null ? spo2.toFixed(1) : '–'} unit="%" color={metricColors.spo2} />
+              <Stat label="Steps" value={steps?.toLocaleString() ?? '–'} color={metricColors.steps} />
             </div>
           </Card>
 
@@ -101,6 +105,24 @@ export function Health() {
                   points={history.map((s) => ({ label: s.date, value: s.breathing_rate }))}
                   labelFormatter={(v) => monthDay(String(v))}
                   valueFormatter={(v) => v.toFixed(1)}
+                />
+              </Card>
+              <Card title="Blood oxygen">
+                <LineTrend
+                  color={metricColors.spo2}
+                  unit="%"
+                  points={history.map((s) => ({ label: s.date, value: s.spo2 }))}
+                  labelFormatter={(v) => monthDay(String(v))}
+                  valueFormatter={(v) => v.toFixed(1)}
+                />
+              </Card>
+              <Card title="Steps">
+                <LineTrend
+                  color={metricColors.steps}
+                  points={history.map((s) => ({ label: s.date, value: s.steps }))}
+                  labelFormatter={(v) => monthDay(String(v))}
+                  valueFormatter={(v) => v.toLocaleString()}
+                  yTickFormatter={compactNum}
                 />
               </Card>
             </div>
