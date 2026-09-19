@@ -1,7 +1,53 @@
 @import 'tailwindcss';
 
+/* Dark is driven by a class on <html>, not the OS setting, so the Lumida-style
+   dark look renders regardless of the viewer's system preference. Existing
+   `dark:` utilities on the older components activate through the same class. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens. Defining `--color-*` here generates matching utilities
+   (bg-surface, text-muted, border-line, ...) alongside Tailwind's defaults.
+   Semantic names so a palette change is one edit, not a find-and-replace. */
+@theme {
+  /* Surfaces — deep near-black navy, cards a step lighter */
+  --color-bg: #0a0a11;
+  --color-surface: #13131f;
+  --color-elevated: #1b1b2b;
+  --color-line: #272738;
+
+  /* Text */
+  --color-content: #ececf4;
+  --color-muted: #9a9ab2;
+  --color-faint: #64647c;
+
+  /* Accent (violet→magenta, matches the Lumida wordmark) */
+  --color-accent: #7c5cff;
+  --color-accent-2: #b56cff;
+
+  /* Per-metric colors, reused by rings and charts so a metric reads the same
+     everywhere it appears */
+  --color-sleep: #7c5cff;
+  --color-duration: #4fc3f7;
+  --color-hr: #ff6b81;
+  --color-breathing: #4ade80;
+  --color-steps: #f5a623;
+  --color-weight: #38bdf8;
+  --color-good: #34d399;
+  --color-warn: #fbbf24;
+}
+
 @layer base {
+  html {
+    color-scheme: dark;
+  }
+
   body {
-    @apply bg-white text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300;
+    background-color: var(--color-bg);
+    color: var(--color-content);
+    /* Soft violet glow in the corners, like the reference dashboard */
+    background-image:
+      radial-gradient(60rem 40rem at 15% -10%, color-mix(in oklab, var(--color-accent) 14%, transparent), transparent 60%),
+      radial-gradient(50rem 40rem at 100% 0%, color-mix(in oklab, var(--color-accent-2) 10%, transparent), transparent 55%);
+    background-attachment: fixed;
   }
 }

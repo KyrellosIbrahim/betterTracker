@@ -37,6 +37,35 @@ them**; if you still want to change one, update this list in the same commit.
 
 ---
 
+## 2026-09-19
+
+### Added
+- **Frontend app shell (Phase 1 of the Lumida-style dashboard).** The single
+  centered `App.tsx` is now a routed multi-page app: a persistent sidebar
+  (Overview → Dashboard; Tracking → Activity, Sleep, Recovery, Health, Weight,
+  Games) with a responsive mobile drawer, a shared top bar (Google connection +
+  now-playing), and a dark-first design system. Why dark is forced via a `.dark`
+  class on `<html>` rather than `prefers-color-scheme`: the reference look is
+  dark and should render regardless of the viewer's OS setting.
+- New dependency **`react-router-dom`** for the sidebar routing.
+- Design tokens (`--color-*`) in `index.css` via Tailwind v4 `@theme`, mirrored
+  as hex in `src/lib/colors.ts` for SVG presentation attributes (where
+  `var(--token)` does **not** resolve — the reason the two coexist).
+- Reusable UI primitives: `ui/Card` + `Stat`, `ui/Section` + `PageHeader`,
+  `ui/ComingSoon`; layout `Sidebar` / `AppLayout`; extracted `AuthIndicator`,
+  `FreshnessAction`, and `lib/format` helpers.
+
+### Changed
+- The original dashboard (rings, trends, gaming-vs-recovery insight cards) moved
+  verbatim into the **Dashboard** route, reusing `MetricRing`, `TrendChart`, and
+  `ComparisonCard` unchanged. Tabs without data yet (Sleep/Recovery/Health/Games
+  pending Phase 3; Activity/Weight pending the Phase 4 backend expansion) render
+  a "coming soon" stub.
+- Breathing-rate ring ceiling raised 20 → 30 /min so a normal night no longer
+  fills the ring completely.
+
+---
+
 ## 2026-08-22
 
 ### Added
