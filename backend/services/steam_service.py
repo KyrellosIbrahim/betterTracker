@@ -44,7 +44,15 @@ def get_game_metadata(app_id: int, db: Session) -> GameCache | None:
 
 
 def upsert_game(app_id: int, game_name: str, genre: str | None, is_competitive: bool, db: Session) -> GameCache:
-    """Add or update a game in the cache."""
+    """
+    Add or update a game in the cache, and backfill its existing sessions.
+
+    `is_competitive`/`genre` are denormalized onto each GameSession at capture
+    time, and the insights group by that stored flag — so tagging a game here
+    would have no effect on history unless we rewrite its past sessions too.
+    Propagating keeps the session flag in sync with the cache, which is what
+    makes a freshly-tagged game show up in the gaming-vs-recovery comparisons.
+    """
     existing = db.query(GameCache).filter(GameCache.app_id == app_id).first()
     if existing:
         existing.game_name = game_name
@@ -58,6 +66,13 @@ def upsert_game(app_id: int, game_name: str, genre: str | None, is_competitive: 
             is_competitive=is_competitive,
         )
         db.add(existing)
+
+    # Backfill past sessions of this game (game_id is the Steam app id).
+    db.query(GameSession).filter(GameSession.game_id == app_id).update(
+        {GameSession.is_competitive: is_competitive, GameSession.genre: genre},
+        synchronize_session=False,
+    )
+
     db.commit()
     db.refresh(existing)
     return existing

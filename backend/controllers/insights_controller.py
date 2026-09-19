@@ -62,3 +62,27 @@ def get_late_night(db: Session = Depends(get_db)):
     Answers: "is it the gaming, or just the hour I stop?"
     """
     return insights_service.get_late_night_impact(db)
+
+
+@router.get("/playtime")
+def get_playtime(db: Session = Depends(get_db)):
+    """
+    Next-morning recovery bucketed by how much was played that day
+    (<1h / 1–3h / 3h+). Answers: "does a longer night cost more recovery?"
+    """
+    return insights_service.get_playtime_impact(db)
+
+
+@router.get("/activity-interaction")
+def get_activity_interaction(db: Session = Depends(get_db)):
+    """
+    Recovery on gaming days that were also physically active vs sedentary vs
+    no-gaming days. Answers: "does staying active offset the gaming hit?"
+    """
+    return insights_service.get_activity_interaction(db)
+
+
+@router.get("/weekly")
+def get_weekly(db: Session = Depends(get_db)):
+    """Per-week total gaming minutes vs average next-morning sleep score."""
+    return insights_service.get_weekly_playtime_vs_sleep(db)

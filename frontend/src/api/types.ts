@@ -150,13 +150,18 @@ export interface GenreSleepImpact {
   sample_days: number
 }
 
-// Shared shape for every bucket-of-recovery-mornings insight.
+// Shared shape for every bucket-of-recovery-mornings insight. Every bucket
+// carries the same metric set so the Games tab can switch which one it charts.
 export interface SleepImpactBucket {
   avg_sleep_score: number | null
   sleep_score_min: number | null
   sleep_score_max: number | null
   avg_sleep_duration_minutes: number | null
+  avg_deep_minutes: number | null
+  avg_rem_minutes: number | null
   avg_resting_hr: number | null
+  avg_breathing_rate: number | null
+  avg_spo2: number | null
   sample_days: number
 }
 
@@ -183,4 +188,29 @@ export interface LateNightImpact {
   late_night_gaming: SleepImpactBucket
   earlier_gaming: SleepImpactBucket
   no_gaming: SleepImpactBucket
+}
+
+// Recovery bucketed by total playtime that gaming day.
+export interface PlaytimeBucket extends SleepImpactBucket {
+  avg_playtime_minutes: number | null
+}
+
+export interface PlaytimeImpact {
+  under_1h: PlaytimeBucket
+  '1_to_3h': PlaytimeBucket
+  over_3h: PlaytimeBucket
+}
+
+// Recovery on gaming days that were also physically active vs sedentary vs none.
+export interface ActivityInteraction {
+  no_gaming: SleepImpactBucket
+  gaming_active: SleepImpactBucket
+  gaming_sedentary: SleepImpactBucket
+}
+
+// One week of total gaming minutes vs average next-morning sleep score.
+export interface WeeklyPlaytimePoint {
+  week_start: string
+  total_minutes: number
+  avg_sleep_score: number | null
 }
