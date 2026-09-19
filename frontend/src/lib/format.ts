@@ -44,3 +44,8 @@ export function relativeDay(isoDate: string): string {
 export function weekdayShort(isoDate: string): string {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' })
 }
+
+// Compact month/day for trend axes: "2026-08-22" -> "Aug 22".
+export function monthDay(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}

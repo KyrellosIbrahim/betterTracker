@@ -54,15 +54,26 @@ them**; if you still want to change one, update this list in the same commit.
 - Reusable UI primitives: `ui/Card` + `Stat`, `ui/Section` + `PageHeader`,
   `ui/ComingSoon`; layout `Sidebar` / `AppLayout`; extracted `AuthIndicator`,
   `FreshnessAction`, and `lib/format` helpers.
+- **Interactive charts (Phase 2).** New dependency **`recharts`** plus themed
+  wrappers in `src/components/charts/` — `LineTrend`, `BarWeek`, and a shared
+  `ChartTooltip` — giving hover tooltips, axes, and a grid. Chart "chrome"
+  colors live in `charts/chartTheme.ts`, mirroring the `index.css` tokens (same
+  reason as `lib/colors.ts`: Recharts sets SVG attributes, where `var(--token)`
+  won't resolve).
 
 ### Changed
 - The original dashboard (rings, trends, gaming-vs-recovery insight cards) moved
-  verbatim into the **Dashboard** route, reusing `MetricRing`, `TrendChart`, and
-  `ComparisonCard` unchanged. Tabs without data yet (Sleep/Recovery/Health/Games
-  pending Phase 3; Activity/Weight pending the Phase 4 backend expansion) render
-  a "coming soon" stub.
+  verbatim into the **Dashboard** route, reusing `MetricRing` and
+  `ComparisonCard` unchanged. Trend charts now use the interactive `LineTrend`.
+  Tabs without data yet (Sleep/Recovery/Health/Games pending Phase 3;
+  Activity/Weight pending the Phase 4 backend expansion) render a "coming soon"
+  stub.
 - Breathing-rate ring ceiling raised 20 → 30 /min so a normal night no longer
   fills the ring completely.
+
+### Removed
+- Hand-rolled `components/TrendChart.tsx` (no axes/tooltips), replaced by the
+  Recharts-based `charts/LineTrend`.
 
 ---
 
